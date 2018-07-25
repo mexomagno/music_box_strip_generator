@@ -8,7 +8,7 @@ from fpdf import FPDF
 from fpdf import Template
 
 
-class StripGenerator:
+class StripGenerator_old:
     def __init__(self, tuning="A#", scale="major", first_note="A#4", note_count=15, key_distance_mm=4):
         self.midi_file = None
         pass
@@ -39,6 +39,10 @@ class _MidiProcessor:
         """ Clump/summarize notes that repeat too fast """
         pass
 
+    @staticmethod
+    def merge_channels(midi_file):
+        """ merges all channels into one """
+        pass
 
 class _PrintableStrips:
     DEFAULT_DOCUMENT_SIZE = (215.9, 279.4)
@@ -65,7 +69,10 @@ class _PdfTitle(_PdfPart):
         pass
 
 class _PdfStrip(_PdfPart):
-    pass
+    def __init__(self, ):
+        pass
+
+
 
 def prepare_text_for_pdf(s):
     if isinstance(s, str):
@@ -121,10 +128,108 @@ def test_fpdf_templates():
     f.render("./delete_me.pdf")
     print("done")
 
+class MusicBoxPDFGenerator(FPDF):
+    """
+    Represents a music box document.
+    All units in mm except for fonts, which are in points.
+    """
+    def __init__(self, n_notes, pin_separation):
+        super().__init__("p", "mm", (279.4, 215.9))
+        self.set_title("Testing this shit")
+        self.set_author("Maximiliano Castro")
+        self.set_auto_page_break(True)
+        self.set_margins(8, 6, 8)
+        self.alias_nb_pages()
+        self.set_compression(True)
+
+        self.n_notes = n_notes
+        self.pin_separation = pin_separation
+        self.generated = False
+
+
+    def generate(self, midi_file, output_file):
+        if self.generated:
+            raise RuntimeError("Document was already generated!")
+        self.add_page()
+        strips_list = list()
+        strip_generator = StripGenerator(beat_distance=10,
+                                         n_notes=self.n_notes,
+                                         tuning="C")
+        # Create first strip
+        first_strip = strip_generator.new_first_strip(song_title="Cancion qlia",
+                                                      song_author="Autor qliao")
+        # Add notes to strip
+        notes = range(10)
+        notes = first_strip.add_notes(notes)
+        strips_list.append(first_strip)
+        while len(notes) > 0:
+            new_strip = strip_generator.new_strip()
+            notes = new_strip.add_notes(notes)
+        print("All notes were added")
+        # draw strips
+        current_y = 20
+        STRIP_MARGIN = 10
+        for strip in strips_list:
+            strip.draw(pdf=self, y=current_y)
+            current_y += strip.get_height() + STRIP_MARGIN
+            if current_y > self.h:
+                self.add_page()
+        self.generated = True
+        self.output(output_file, "F")
+        print("All strips were drawn")
+
+class StripGenerator:
+    def __init__(self, beat_distance, n_notes, tuning="C", start_note="C"):
+        self.beat_distance = beat_distance
+        self.n_notes = n_notes
+        if tuning == "C":
+            self.note_symbols = "C,D,E,F,G,A,B".split(",")
+        elif tuning == "X":
+            self.note_symbols = "C,C#,D,D#,E,F,F#,G,G#,A,A#,B".split(",")
+        else:
+            raise RuntimeError("Unsupported tuning '{}'".format(tuning))
+        if start_note not in self.note_symbols:
+            raise ValueError("Incorrect starting note '{}'".format(start_note))
+        note_offset = self.note_symbols.index(start_note)
+        # rotate note symbols according to start note position in them
+        self.note_symbols = self.note_symbols[note_offset:] + self.note_symbols[:note_offset]
+        print("Created strip generator. Notes: {}".format(', '.join(self.note_symbols)))
+
+    def new_first_strip(self, song_title=None, song_author=None):
+        return Strip(song_title=song_title,
+                     song_author=song_author,
+                     is_first=True,
+                     beat_distance=self.beat_distance,
+                     n_notes=self.n_notes,
+                     note_symbols=self.note_symbols)
+
+
+    def new_strip(self):
+        return Strip(beat_distance=self.beat_distance,
+                     n_notes=self.n_notes,
+                     note_symbols=self.note_symbols)
+
+class Strip:
+    def __init__(self, beat_distance, n_notes, note_symbols, is_first=False, song_title=None, song_author=None):
+        self.is_first = is_first
+        self.beat_distance = beat_distance
+        self.n_notes = n_notes
+        self.note_symbols = note_symbols
+        self.song_title = song_title
+        self.song_author = song_author
+
+    def add_notes(self, notes):
+        return notes[:-1]
+
+    def draw(self, pdf, y):
+        pass
+
+    def get_height(self):
+        return 10
 
 def test_fpdf_drawing():
     # Crear wea
-    pdf = FPDF("p", "mm", (215.9, 279.4))
+    pdf = FPDF("p", "mm", (279.4, 215.9))
     pdf.set_title("Testing this shit")
     pdf.set_author("Maximiliano Castro")
     pdf.set_auto_page_break(True)
@@ -142,9 +247,10 @@ def test_fpdf_drawing():
     N_NOTES = 15
     NOTE_NAMES = "CDEFGAB"
     G_CLEF_NOTES = "EGBDF"
+    G_CLEF_Y = -1
     NOTE_OFFSET = 0
     NOTE_SEPARATION = 2
-    BEATS_PER_STRIP = 30
+    BEATS_PER_STRIP = 60
     FIRST_STRIP_OFFSET = 20
     x0 = pdf.l_margin + FIRST_STRIP_OFFSET
     x1 = pdf.w - pdf.r_margin
@@ -153,6 +259,7 @@ def test_fpdf_drawing():
     y1 = y0 + NOTE_SEPARATION*(N_NOTES-1)
     # Dibujar líneas horizontales notas
     pdf.set_font("arial", "B", 7)
+    pdf.set_draw_color(140, 140, 140)
     for n in range(N_NOTES):
         y = y0 + n*NOTE_SEPARATION
         if len(G_CLEF_NOTES) != 0 and ''.join(reversed(NOTE_NAMES))[(n+len(NOTE_NAMES)-(N_NOTES%len(NOTE_NAMES)))%len(NOTE_NAMES)] == G_CLEF_NOTES[-1]:
@@ -162,10 +269,7 @@ def test_fpdf_drawing():
             pdf.set_line_width(current_line_width)
             if (G_CLEF_NOTES[-1] == "G"):
                 # draw G clef
-                G_CLEF_H = NOTE_SEPARATION*15
-                pdf.image("g_clef.png", x=x0,
-                          y=y - G_CLEF_H/1.8,
-                          h=G_CLEF_H)
+                G_CLEF_Y = y
             G_CLEF_NOTES = G_CLEF_NOTES[:-1]
         else:
             pdf.line(x0, y, x1, y)
@@ -220,11 +324,34 @@ def test_fpdf_drawing():
                             space_length=1.1*NOTE_SEPARATION)
 
     # Divisores strip
-    pdf.line(x0-MAX_TITLE_FONT_SIZE*2, y0 - STRIP_MARGIN_V,
+    corner_x = x0-MAX_TITLE_FONT_SIZE*1.3
+    pdf.line(corner_x, y0 - STRIP_MARGIN_V,
              pdf.w, y0 - STRIP_MARGIN_V)
-    pdf.line(x0 - MAX_TITLE_FONT_SIZE * 2, y1 + STRIP_MARGIN_V,
+    pdf.line(corner_x, y1 + STRIP_MARGIN_V,
              pdf.w, y1 + STRIP_MARGIN_V)
+    pdf.line(corner_x, y0 - STRIP_MARGIN_V,
+             pdf.l_margin*0.2, y0+(y1-y0)/2)
+    pdf.line(pdf.l_margin*0.2, y0+(y1-y0)/2,
+             corner_x, y1 + STRIP_MARGIN_V)
+
+    # draw g clef
+    if G_CLEF_Y > 0:
+        G_CLEF_H = NOTE_SEPARATION * 15
+        pdf.image("g_clef.png", x=x0,
+                  y=G_CLEF_Y - G_CLEF_H / 1.8,
+                  h=G_CLEF_H)
+
+    # draw notes
+    # We could use a plotting approach, where each duration can be directly mapped to a distance from the origin
+
+
     # Guardar
     pdf.output("delete_me.pdf", "F")
 
-test_fpdf_drawing()
+def test_oop_document_drawing():
+    doc = MusicBoxPDFGenerator(n_notes=15,
+                               pin_separation=2)
+    doc.generate("midi_file.mid", "delete_me.pdf")
+
+
+test_oop_document_drawing()
