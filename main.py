@@ -133,7 +133,7 @@ class MusicBoxPDFGenerator(FPDF):
     Represents a music box document.
     All units in mm except for fonts, which are in points.
     """
-    def __init__(self, n_notes, pin_separation):
+    def __init__(self, n_notes, pin_width, strip_margin, beat_width=5):
         super().__init__("p", "mm", (279.4, 215.9))
         self.set_title("Testing this shit")
         self.set_author("Maximiliano Castro")
@@ -142,8 +142,14 @@ class MusicBoxPDFGenerator(FPDF):
         self.alias_nb_pages()
         self.set_compression(True)
 
-        self.n_notes = n_notes
-        self.pin_separation = pin_separation
+        self.settings = {
+            "n_notes": n_notes,
+            "pin_width": pin_width,
+            "strip_margin": strip_margin,
+            "beat_width": beat_width,
+            "tuning": "C",
+            "start_note": "C"
+        }
         self.generated = False
 
 
@@ -152,36 +158,37 @@ class MusicBoxPDFGenerator(FPDF):
             raise RuntimeError("Document was already generated!")
         self.add_page()
         strips_list = list()
-        strip_generator = StripGenerator(beat_distance=10,
-                                         n_notes=self.n_notes,
-                                         tuning="C")
+        strip_generator = StripGenerator(settings=self.settings)
         # Create first strip
         first_strip = strip_generator.new_first_strip(song_title="Cancion qlia",
                                                       song_author="Autor qliao")
         # Add notes to strip
-        notes = range(10)
-        notes = first_strip.add_notes(notes)
+        notes_left = range(1)
+        notes_left = first_strip.add_notes(notes_left)
         strips_list.append(first_strip)
-        while len(notes) > 0:
+        while len(notes_left) > 0:
+            print("Created new strip")
             new_strip = strip_generator.new_strip()
-            notes = new_strip.add_notes(notes)
-        print("All notes were added")
+            notes_left = new_strip.add_notes(notes_left)
         # draw strips
-        current_y = 20
+        print("Done. Drawing...")
+        current_y = 100
         STRIP_MARGIN = 10
         for strip in strips_list:
-            strip.draw(pdf=self, y=current_y)
+            strip.draw(pdf=self, x0=5, x1=self.w, y=current_y)
             current_y += strip.get_height() + STRIP_MARGIN
             if current_y > self.h:
                 self.add_page()
+            print("> Drew a strip")
         self.generated = True
         self.output(output_file, "F")
-        print("All strips were drawn")
+        print("Done, Saved as {}".format(output_file))
 
 class StripGenerator:
-    def __init__(self, beat_distance, n_notes, tuning="C", start_note="C"):
-        self.beat_distance = beat_distance
-        self.n_notes = n_notes
+    def __init__(self, settings):
+        self.settings = settings
+        tuning = settings["tuning"]
+        start_note = settings["start_note"]
         if tuning == "C":
             self.note_symbols = "C,D,E,F,G,A,B".split(",")
         elif tuning == "X":
@@ -198,34 +205,131 @@ class StripGenerator:
     def new_first_strip(self, song_title=None, song_author=None):
         return Strip(song_title=song_title,
                      song_author=song_author,
-                     is_first=True,
-                     beat_distance=self.beat_distance,
-                     n_notes=self.n_notes,
-                     note_symbols=self.note_symbols)
+                     settings=self.settings,
+                     note_symbols=self.note_symbols,
+                     is_first=True)
 
 
     def new_strip(self):
-        return Strip(beat_distance=self.beat_distance,
-                     n_notes=self.n_notes,
+        return Strip(settings=self.settings,
                      note_symbols=self.note_symbols)
 
 class Strip:
-    def __init__(self, beat_distance, n_notes, note_symbols, is_first=False, song_title=None, song_author=None):
+    def __init__(self, settings, note_symbols, is_first=False, song_title=None, song_author=None):
         self.is_first = is_first
-        self.beat_distance = beat_distance
-        self.n_notes = n_notes
+        self.settings = settings
         self.note_symbols = note_symbols
-        self.song_title = song_title
-        self.song_author = song_author
+        self.song_title = song_title if song_title else "NO-TITLE"
+        self.song_author = song_author if song_author else "NO-AUTHOR"
 
     def add_notes(self, notes):
         return notes[:-1]
 
-    def draw(self, pdf, y):
-        pass
+    def draw(self, pdf, x0, x1, y):
+        """ Draws the strip in the pdf document """
+        x_start = x0
+        if self.is_first:
+            # Draw strip header
+            x_start = self._draw_header(pdf, x_start, y)
+
+        # Draw notes grid
+        self._draw_body(pdf, x_start, x1, y)
+
+        # if self.is_first:
+        #     #draw G clef
+        #     G_CLEF_H = NOTE_SEPARATION * 15
+        #     pdf.image("g_clef.png", x=x0,
+        #               y=G_CLEF_Y - G_CLEF_H / 1.8,
+        #               h=G_CLEF_H)
+
+    def _draw_header(self, pdf, x0, y):
+        #def show_pointer(s="O"):
+        # rotate reference
+
+        pdf.rotate(90, x0, y)
+        # Coordinates are the same, but are drawn rotated
+        current_y = y
+        # draw triangle
+        TRIANGLE_SIZE = (8, 8)
+        TRIANGLE_MARGIN_T = 4
+        pdf.image(name="triangle_tiny.png",
+                  x=x0-TRIANGLE_SIZE[0]/2,
+                  y=current_y + TRIANGLE_MARGIN_T,
+                  w=TRIANGLE_SIZE[0],
+                  h=TRIANGLE_SIZE[1])
+        current_y += TRIANGLE_MARGIN_T  # Relative to rotated perspective
+        # Write song info:
+        STRIP_MARGIN = self.settings["strip_margin"]
+        PIN_WIDTH = self.settings["pin_width"]
+        N_NOTES = self.settings["n_notes"]
+        MAX_TITLE_WIDTH = PIN_WIDTH * N_NOTES + 2 * STRIP_MARGIN - 4
+        pdf.set_font("courier", "B", 30)
+
+        while max(pdf.get_string_width(self.song_title), pdf.get_string_width(self.song_author)) > MAX_TITLE_WIDTH:
+            pdf.set_font_size(pdf.font_size_pt - 0.1)
+        pdf.text(x=x0-pdf.get_string_width(self.song_title)/2,
+                 y=current_y + TRIANGLE_SIZE[1] + pdf.font_size + 5,
+                 txt=self.song_title)
+        current_y += TRIANGLE_SIZE[1] + pdf.font_size + 5
+        pdf.text(x=x0-pdf.get_string_width(self.song_author)/2,
+                 y=current_y + pdf.font_size + 3,
+                 txt=self.song_author)
+        current_y += pdf.font_size + 10
+
+        # draw notes
+        x0_first_note = x0 - N_NOTES * PIN_WIDTH/2
+        pdf.set_font("Arial", "B", 8)
+        for n in range(N_NOTES):
+            symbol = self.note_symbols[n % len(self.note_symbols)]
+            pdf.text(x0_first_note + n*PIN_WIDTH,
+                     current_y + pdf.font_size,
+                     symbol)
+        current_y += pdf.font_size + 1
+
+        # un-rotate
+        pdf.rotate(0, y, x0)
+        x0_adjusted = x0 + (current_y - y)
+
+        pdf.line(x0_adjusted, y - 30, x0_adjusted, y + 30)
+
+        # Draw strip limits
+        STRIP_WIDTH = PIN_WIDTH*N_NOTES + 2*STRIP_MARGIN
+        x0_strip_angle = x0 + TRIANGLE_SIZE[1] + 5
+
+        # Draw strip borders
+        pdf.line(x0_strip_angle, y - STRIP_WIDTH / 2,
+                 x0_adjusted, y - STRIP_WIDTH / 2)
+        pdf.line(x0_strip_angle, y + STRIP_WIDTH / 2,
+                 x0_adjusted, y + STRIP_WIDTH / 2)
+        pdf.line(x0, y - 4, x0_strip_angle, y - STRIP_WIDTH / 2)
+        pdf.line(x0, y + 4, x0_strip_angle, y + STRIP_WIDTH / 2)
+        return x0_adjusted
+
+    def _draw_body(self, pdf, x0, x1, y):
+        N_NOTES = self.settings["n_notes"]
+        PIN_WIDTH = self.settings["pin_width"]
+        STRIP_WIDTH = N_NOTES * PIN_WIDTH
+        for h_line in range(N_NOTES):
+            pdf.line(x0, y - STRIP_WIDTH/2 + PIN_WIDTH*h_line + PIN_WIDTH/2,
+                     x1, y - STRIP_WIDTH/2 + PIN_WIDTH*h_line + PIN_WIDTH/2)
+
+        # Draw vertical lines
+        BEAT_WIDTH = self.settings["beat_width"]
+        for v_line in range(int((x1-x0)/BEAT_WIDTH)):
+            line_x = x0 + v_line*BEAT_WIDTH
+            y_half = STRIP_WIDTH/2 - PIN_WIDTH/2
+            if v_line % 2 == 0:
+                pdf.line(line_x, y - y_half, line_x, y + y_half)
+            else:
+                pdf.dashed_line(line_x, y - y_half, line_x, y + y_half,
+                                dash_length=1.6*PIN_WIDTH,
+                                space_length=1.1*PIN_WIDTH)
+
+
 
     def get_height(self):
         return 10
+
 
 def test_fpdf_drawing():
     # Crear wea
@@ -350,7 +454,8 @@ def test_fpdf_drawing():
 
 def test_oop_document_drawing():
     doc = MusicBoxPDFGenerator(n_notes=15,
-                               pin_separation=2)
+                               pin_width=2,
+                               strip_margin=10)
     doc.generate("midi_file.mid", "delete_me.pdf")
 
 
