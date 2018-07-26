@@ -6,97 +6,60 @@ Basic example of usage
 
 from fpdf import FPDF
 from fpdf import Template
+import midi
+import pprint
 
-
-class StripGenerator_old:
-    def __init__(self, tuning="A#", scale="major", first_note="A#4", note_count=15, key_distance_mm=4):
-        self.midi_file = None
-        pass
-
-    def load_midi(self, midi_file):
-        # prepare midi file
-        new_midi = _MidiProcessor.fit_to_tuning(midi_file, self.tuning)
-        min_delay = 10 # Calculate from hole size and tempo
-        new_midi = _MidiProcessor.round_beats(new_midi, min_delay)
-        # Save to instance variable
-        self.midi_file = new_midi
-
-    def to_pdf(self, output_path, format):
-        # Draw PDF
-        pdf_doc = _PrintableStrips.generate(midi_file=self.midi_file,
-                                            output_path=output_path,
-                                            format=format)
-        pass
 
 class _MidiProcessor:
     @staticmethod
-    def fit_to_tuning(midi_file, tuning):
+    def fit_to_tuning(midi_object, tuning):
         """ Force chromatism into tuning """
         pass
 
     @staticmethod
-    def round_beats(midi_file, min_delay):
+    def fit_octaves(midi_object, start_note, end_note):
+        """ Force notes on extreme octaves to be inside a range (inclusive) """
+        pass
+
+    @staticmethod
+    def round_beats(midi_object, min_delay):
         """ Clump/summarize notes that repeat too fast """
         pass
 
     @staticmethod
-    def merge_channels(midi_file):
+    def merge_channels(midi_object):
         """ merges all channels into one """
         pass
 
-class _PrintableStrips:
-    DEFAULT_DOCUMENT_SIZE = (215.9, 279.4)
-    def __init__(self, d):
-        pass
+    @staticmethod
+    def _pitch_to_note(midi_pitch_code):
+        return "C C# D D# E F F# G G# A A# B".split(" ")[midi_pitch_code % 12], -1 + int(midi_pitch_code/12)
 
-    def generate(self, midi_file, output_path, format):
-        # Create PDF document components
-        pdf_parts_list = list()
-        # Create title
-        pdf_parts_list.append(_PdfTitle(position=()))
+    @staticmethod
+    def render_to_box(midi_object):
+        """
+        Parses and generates a music-box-compatible structure
 
-        
+        Parameters
+        ----------
+        midi_object: midi.Pattern
 
+        Returns
+        -------
 
-class _PdfPart:
-    def __init__(self, position, center_vertical, center_horizontal):
-        self.position = position
-        self.center_vertical = center_vertical
-        self.center_horizontal = center_horizontal
-
-class _PdfTitle(_PdfPart):
-    def __init__(self, text, font_size, font):
-        pass
-
-class _PdfStrip(_PdfPart):
-    def __init__(self, ):
-        pass
-
-
-
-def prepare_text_for_pdf(s):
-    if isinstance(s, str):
-        try:
-            return s.decode("utf-8").encode("latin1")
-        except UnicodeEncodeError as e:
-            print ("Error encoding: {}".format(e))
-            return s.decode("utf-8").encode("cp1252")
-    return s
-
-
-def main():
-    # Create musical strip. Settings depend on actual musical box
-    strip = StripGenerator(tuning="A#",
-                           scale="major",
-                           first_note="A#4",
-                           note_count=15,
-                           key_distance_mm=4)
-    # Load and parse midi file
-    strip.load_midi(midi_file="midi_file.mid")
-    # Generate printable strips
-    strip.to_pdf(pdf_path="path.pdf",
-                      paper_format="letter")
-
+        """
+        midi_object.make_ticks_abs()
+        resolution = midi_object.resolution
+        rendered = list()
+        for event in midi_object[0]:
+            if isinstance(event, midi.NoteOnEvent) and event.get_velocity() > 0:
+                note, octave = _MidiProcessor._pitch_to_note(event.get_pitch())
+                rendered.append({
+                    "note": note,
+                    "octave": octave,
+                    "time": event.tick/resolution
+                })
+        return rendered
 
 
 def test_fpdf_templates():
@@ -156,6 +119,12 @@ class MusicBoxPDFGenerator(FPDF):
     def generate(self, midi_file, output_file):
         if self.generated:
             raise RuntimeError("Document was already generated!")
+
+        # Parse midi file
+        parsed_midi = _MidiProcessor.render_to_box(midi.read_midifile(midi_file))
+        for note in parsed_midi:
+            pprint.pprint(note)
+
         self.add_page()
         strips_list = list()
         strip_generator = StripGenerator(settings=self.settings)
@@ -309,6 +278,7 @@ class Strip:
         return x0_adjusted
 
     def _draw_body(self, pdf, x0, x1, y):
+        pdf.set_draw_color(140, 140, 140)
         N_NOTES = self.settings["n_notes"]
         PIN_WIDTH = self.settings["pin_width"]
         STRIP_WIDTH = N_NOTES * PIN_WIDTH
@@ -345,6 +315,7 @@ class Strip:
                                 space_length=1.1*PIN_WIDTH)
 
         # Draw strip limits
+        pdf.set_draw_color(0, 0, 0)
         STRIP_MARGIN = self.settings["strip_margin"]
         STRIP_WIDTH = PIN_WIDTH * N_NOTES + 2 * STRIP_MARGIN
         pdf.line(x0, y - STRIP_WIDTH/2, x1, y - STRIP_WIDTH/2)
@@ -358,7 +329,6 @@ class Strip:
         N_NOTES = self.settings["n_notes"]
         STRIP_MARGIN = self.settings["strip_margin"]
         return PIN_WIDTH*N_NOTES + 2*STRIP_MARGIN
-
 
 def test_fpdf_drawing():
     # Crear wea
@@ -488,7 +458,7 @@ def test_oop_document_drawing():
                                beat_width=6,
                                tuning="C",
                                start_note="C")
-    doc.generate("midi_file.mid", "delete_me.pdf")
+    doc.generate("test.mid", "delete_me.pdf")
 
 
 test_oop_document_drawing()
