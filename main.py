@@ -127,8 +127,8 @@ class MusicBoxPDFGenerator(FPDF):
                                          song_title="Cancion qlia",
                                          song_author="Autor qliao")
         # Add notes to strip
-        current_y = strip_generator.get_height() / 2 + self.t_margin
-        STRIP_MARGIN = 10
+        STRIP_MARGIN = 1
+        current_y = - strip_generator.get_height() / 2 - STRIP_MARGIN + self.t_margin
 
         while len(parsed_notes) > 0:
             print("> Created new strip")
@@ -282,6 +282,7 @@ class Strip:
         N_NOTES = self.settings["n_notes"]
         PIN_WIDTH = self.settings["pin_width"]
         STRIP_WIDTH = N_NOTES * PIN_WIDTH
+        BEAT_WIDTH = self.settings["beat_width"]
         G_CLEF_NOTES = "EGBDF"
         G_CLEF_Y = None
         do_g_clef = all([x in self.note_symbols for x in G_CLEF_NOTES])
@@ -292,7 +293,7 @@ class Strip:
                 current_line_width = pdf.line_width
                 pdf.set_line_width(1)
                 pdf.line(x0 + pdf.line_width/2, y - STRIP_WIDTH / 2 + PIN_WIDTH * h_line + PIN_WIDTH / 2,
-                         x1 - pdf.line_width/2, y - STRIP_WIDTH / 2 + PIN_WIDTH * h_line + PIN_WIDTH / 2)
+                         x0 + (x1-x0) - ((x1-x0) % BEAT_WIDTH) - pdf.line_width/2, y - STRIP_WIDTH / 2 + PIN_WIDTH * h_line + PIN_WIDTH / 2)
                 pdf.set_line_width(current_line_width)
                 if (G_CLEF_NOTES[-1] == "G"):
                     # store g clef position for later
@@ -300,10 +301,9 @@ class Strip:
                 G_CLEF_NOTES = G_CLEF_NOTES[:-1]
             else:
                 pdf.line(x0, y - STRIP_WIDTH/2 + PIN_WIDTH*h_line + PIN_WIDTH/2,
-                         x1, y - STRIP_WIDTH/2 + PIN_WIDTH*h_line + PIN_WIDTH/2)
+                         x0 + (x1 - x0) - ((x1 - x0) % BEAT_WIDTH), y - STRIP_WIDTH/2 + PIN_WIDTH*h_line + PIN_WIDTH/2)
 
         # Draw vertical lines
-        BEAT_WIDTH = self.settings["beat_width"]
         for v_line in range(int((x1-x0)/BEAT_WIDTH) + 1):
             line_x = x0 + v_line*BEAT_WIDTH
             y_half = STRIP_WIDTH/2 - PIN_WIDTH/2
