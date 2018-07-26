@@ -160,25 +160,29 @@ class MusicBoxPDFGenerator(FPDF):
         strips_list = list()
         strip_generator = StripGenerator(settings=self.settings)
         # Create first strip
+        print ("Created first strip")
         first_strip = strip_generator.new_first_strip(song_title="Cancion qlia",
                                                       song_author="Autor qliao")
         # Add notes to strip
-        notes_left = range(1)
+        notes_left = range(10)
         notes_left = first_strip.add_notes(notes_left)
         strips_list.append(first_strip)
         while len(notes_left) > 0:
             print("Created new strip")
             new_strip = strip_generator.new_strip()
             notes_left = new_strip.add_notes(notes_left)
+            strips_list.append(new_strip)
         # draw strips
         print("Done. Drawing...")
-        current_y = first_strip.get_height()/2 + 5
         STRIP_MARGIN = 10
+        current_y = - first_strip.get_height()/2 - STRIP_MARGIN + self.t_margin
         for strip in strips_list:
-            strip.draw(pdf=self, x0=5, x1=self.w, y=current_y)
             current_y += strip.get_height() + STRIP_MARGIN
-            if current_y > self.h:
+            if current_y + strip.get_height()/2 > self.h - self.b_margin:
+                print("> Had to add page")
                 self.add_page()
+                current_y = first_strip.get_height()/2 + self.t_margin
+            strip.draw(pdf=self, x0=self.l_margin, x1=self.w - self.r_margin, y=current_y)
             print("> Drew a strip")
         self.generated = True
         self.output(output_file, "F")
