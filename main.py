@@ -115,53 +115,47 @@ class MusicBoxPDFGenerator(FPDF):
         }
         self.generated = False
 
-
     def generate(self, midi_file, output_file):
         if self.generated:
             raise RuntimeError("Document was already generated!")
 
         # Parse midi file
-        parsed_midi = _MidiProcessor.render_to_box(midi.read_midifile(midi_file))
-        for note in parsed_midi:
-            pprint.pprint(note)
+        parsed_notes = _MidiProcessor.render_to_box(midi.read_midifile(midi_file))
 
         self.add_page()
-        strips_list = list()
-        strip_generator = StripGenerator(settings=self.settings)
-        # Create first strip
-        print ("Created first strip")
-        first_strip = strip_generator.new_first_strip(song_title="Cancion qlia",
-                                                      song_author="Autor qliao")
+        strip_generator = StripGenerator(settings=self.settings,
+                                         song_title="Cancion qlia",
+                                         song_author="Autor qliao")
         # Add notes to strip
-        notes_left = range(10)
-        notes_left = first_strip.add_notes(notes_left)
-        strips_list.append(first_strip)
-        while len(notes_left) > 0:
-            print("Created new strip")
-            new_strip = strip_generator.new_strip()
-            notes_left = new_strip.add_notes(notes_left)
-            strips_list.append(new_strip)
-        # draw strips
-        print("Done. Drawing...")
+        current_y = strip_generator.get_height() / 2 + self.t_margin
         STRIP_MARGIN = 10
-        current_y = - first_strip.get_height()/2 - STRIP_MARGIN + self.t_margin
-        for strip in strips_list:
-            current_y += strip.get_height() + STRIP_MARGIN
-            if current_y + strip.get_height()/2 > self.h - self.b_margin:
+
+        while len(parsed_notes) > 0:
+            print("> Created new strip")
+            new_strip = strip_generator.new_strip()
+            current_y += strip_generator.get_height() + STRIP_MARGIN
+            if current_y + strip_generator.get_height() / 2 > self.h - self.b_margin:
                 print("> Had to add page")
                 self.add_page()
-                current_y = first_strip.get_height()/2 + self.t_margin
-            strip.draw(pdf=self, x0=self.l_margin, x1=self.w - self.r_margin, y=current_y)
+                current_y = strip_generator.get_height() / 2 + self.t_margin
+            parsed_notes = new_strip.draw(pdf=self,
+                                          x0=self.l_margin,
+                                          x1=self.w - self.r_margin,
+                                          y=current_y,
+                                          notes=parsed_notes)
             print("> Drew a strip")
+
         self.generated = True
         self.output(output_file, "F")
         print("Done, Saved as {}".format(output_file))
 
 class StripGenerator:
-    def __init__(self, settings):
+    def __init__(self, settings, song_title=None, song_author=None):
         self.settings = settings
         tuning = settings["tuning"]
         start_note = settings["start_note"]
+        self.song_title = song_title
+        self.song_author = song_author
         if tuning == "C":
             self.note_symbols = "C,D,E,F,G,A,B".split(",")
         elif tuning == "X":
@@ -174,18 +168,26 @@ class StripGenerator:
         # rotate note symbols according to start note position in them
         self.note_symbols = self.note_symbols[note_offset:] + self.note_symbols[:note_offset]
         print("Created strip generator. Notes: {}".format(', '.join(self.note_symbols)))
-
-    def new_first_strip(self, song_title=None, song_author=None):
-        return Strip(song_title=song_title,
-                     song_author=song_author,
-                     settings=self.settings,
-                     note_symbols=self.note_symbols,
-                     is_first=True)
-
+        self.has_header = False
 
     def new_strip(self):
-        return Strip(settings=self.settings,
-                     note_symbols=self.note_symbols)
+        if not self.has_header:
+            self.has_header = True
+            return Strip(song_title=self.song_title,
+                         song_author=self.song_author,
+                         settings=self.settings,
+                         note_symbols=self.note_symbols,
+                         is_first=True)
+        else:
+            return Strip(settings=self.settings,
+                         note_symbols=self.note_symbols)
+
+    def get_height(self):
+        PIN_WIDTH = self.settings["pin_width"]
+        N_NOTES = self.settings["n_notes"]
+        STRIP_MARGIN = self.settings["strip_margin"]
+        return PIN_WIDTH*N_NOTES + 2*STRIP_MARGIN
+
 
 class Strip:
     def __init__(self, settings, note_symbols, is_first=False, song_title=None, song_author=None):
@@ -195,10 +197,7 @@ class Strip:
         self.song_title = song_title if song_title else "NO-TITLE"
         self.song_author = song_author if song_author else "NO-AUTHOR"
 
-    def add_notes(self, notes):
-        return notes[:-1]
-
-    def draw(self, pdf, x0, x1, y):
+    def draw(self, pdf, x0, x1, y, notes):
         """ Draws the strip in the pdf document """
         x_start = x0
         if self.is_first:
@@ -215,6 +214,7 @@ class Strip:
             pdf.image("g_clef.png", x=x_start,
                       y=g_clef_y - G_CLEF_H / 1.8,
                       h=G_CLEF_H)
+        return notes[1:]
 
     def _draw_header(self, pdf, x0, y):
         #def show_pointer(s="O"):
@@ -323,12 +323,6 @@ class Strip:
 
         return G_CLEF_Y
 
-
-    def get_height(self):
-        PIN_WIDTH = self.settings["pin_width"]
-        N_NOTES = self.settings["n_notes"]
-        STRIP_MARGIN = self.settings["strip_margin"]
-        return PIN_WIDTH*N_NOTES + 2*STRIP_MARGIN
 
 def test_fpdf_drawing():
     # Crear wea
