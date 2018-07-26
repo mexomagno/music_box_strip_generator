@@ -133,7 +133,7 @@ class MusicBoxPDFGenerator(FPDF):
     Represents a music box document.
     All units in mm except for fonts, which are in points.
     """
-    def __init__(self, n_notes, pin_width, strip_margin, beat_width=5):
+    def __init__(self, n_notes, pin_width, strip_margin, tuning="C", start_note="C", beat_width=8):
         super().__init__("p", "mm", (279.4, 215.9))
         self.set_title("Testing this shit")
         self.set_author("Maximiliano Castro")
@@ -147,8 +147,8 @@ class MusicBoxPDFGenerator(FPDF):
             "pin_width": pin_width,
             "strip_margin": strip_margin,
             "beat_width": beat_width,
-            "tuning": "C",
-            "start_note": "C"
+            "tuning": tuning,
+            "start_note": start_note
         }
         self.generated = False
 
@@ -172,7 +172,7 @@ class MusicBoxPDFGenerator(FPDF):
             notes_left = new_strip.add_notes(notes_left)
         # draw strips
         print("Done. Drawing...")
-        current_y = 100
+        current_y = first_strip.get_height()/2 + 5
         STRIP_MARGIN = 10
         for strip in strips_list:
             strip.draw(pdf=self, x0=5, x1=self.w, y=current_y)
@@ -309,13 +309,29 @@ class Strip:
         N_NOTES = self.settings["n_notes"]
         PIN_WIDTH = self.settings["pin_width"]
         STRIP_WIDTH = N_NOTES * PIN_WIDTH
+        G_CLEF_NOTES = "EGBDF"
+        G_CLEF_Y = None
+        do_g_clef = all([x in self.note_symbols for x in G_CLEF_NOTES])
+        clef_offset = len(self.note_symbols) - (N_NOTES % len(self.note_symbols))
         for h_line in range(N_NOTES):
-            pdf.line(x0, y - STRIP_WIDTH/2 + PIN_WIDTH*h_line + PIN_WIDTH/2,
-                     x1, y - STRIP_WIDTH/2 + PIN_WIDTH*h_line + PIN_WIDTH/2)
+            if do_g_clef and len(G_CLEF_NOTES) != 0 \
+                    and G_CLEF_NOTES[-1] == list(reversed(self.note_symbols))[(h_line + clef_offset)% len(self.note_symbols)]:
+                current_line_width = pdf.line_width
+                pdf.set_line_width(1)
+                pdf.line(x0 + pdf.line_width/2, y - STRIP_WIDTH / 2 + PIN_WIDTH * h_line + PIN_WIDTH / 2,
+                         x1 - pdf.line_width/2, y - STRIP_WIDTH / 2 + PIN_WIDTH * h_line + PIN_WIDTH / 2)
+                pdf.set_line_width(current_line_width)
+                if (G_CLEF_NOTES[-1] == "G"):
+                    # store g clef position for later
+                    G_CLEF_Y = y - STRIP_WIDTH / 2 + PIN_WIDTH * h_line + PIN_WIDTH / 2
+                G_CLEF_NOTES = G_CLEF_NOTES[:-1]
+            else:
+                pdf.line(x0, y - STRIP_WIDTH/2 + PIN_WIDTH*h_line + PIN_WIDTH/2,
+                         x1, y - STRIP_WIDTH/2 + PIN_WIDTH*h_line + PIN_WIDTH/2)
 
         # Draw vertical lines
         BEAT_WIDTH = self.settings["beat_width"]
-        for v_line in range(int((x1-x0)/BEAT_WIDTH)):
+        for v_line in range(int((x1-x0)/BEAT_WIDTH) + 1):
             line_x = x0 + v_line*BEAT_WIDTH
             y_half = STRIP_WIDTH/2 - PIN_WIDTH/2
             if v_line % 2 == 0:
@@ -325,10 +341,14 @@ class Strip:
                                 dash_length=1.6*PIN_WIDTH,
                                 space_length=1.1*PIN_WIDTH)
 
+        # Draw
 
 
     def get_height(self):
-        return 10
+        PIN_WIDTH = self.settings["pin_width"]
+        N_NOTES = self.settings["n_notes"]
+        STRIP_MARGIN = self.settings["strip_margin"]
+        return PIN_WIDTH*N_NOTES + 2*STRIP_MARGIN
 
 
 def test_fpdf_drawing():
@@ -455,7 +475,10 @@ def test_fpdf_drawing():
 def test_oop_document_drawing():
     doc = MusicBoxPDFGenerator(n_notes=15,
                                pin_width=2,
-                               strip_margin=10)
+                               strip_margin=10,
+                               beat_width=6,
+                               tuning="C",
+                               start_note="C")
     doc.generate("midi_file.mid", "delete_me.pdf")
 
 
