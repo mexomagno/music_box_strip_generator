@@ -233,14 +233,15 @@ class Strip:
             x_start = self._draw_header(pdf, x_start, y)
 
         # Draw notes grid
-        self._draw_body(pdf, x_start, x1, y)
+        g_clef_y = self._draw_body(pdf, x_start, x1, y)
 
-        # if self.is_first:
-        #     #draw G clef
-        #     G_CLEF_H = NOTE_SEPARATION * 15
-        #     pdf.image("g_clef.png", x=x0,
-        #               y=G_CLEF_Y - G_CLEF_H / 1.8,
-        #               h=G_CLEF_H)
+        if self.is_first and g_clef_y:
+            #draw G clef
+            PIN_WIDTH = self.settings["pin_width"]
+            G_CLEF_H =  PIN_WIDTH * 15
+            pdf.image("g_clef.png", x=x_start,
+                      y=g_clef_y - G_CLEF_H / 1.8,
+                      h=G_CLEF_H)
 
     def _draw_header(self, pdf, x0, y):
         #def show_pointer(s="O"):
@@ -289,8 +290,6 @@ class Strip:
         # un-rotate
         pdf.rotate(0, y, x0)
         x0_adjusted = x0 + (current_y - y)
-
-        pdf.line(x0_adjusted, y - 30, x0_adjusted, y + 30)
 
         # Draw strip limits
         STRIP_WIDTH = PIN_WIDTH*N_NOTES + 2*STRIP_MARGIN
@@ -341,7 +340,13 @@ class Strip:
                                 dash_length=1.6*PIN_WIDTH,
                                 space_length=1.1*PIN_WIDTH)
 
-        # Draw
+        # Draw strip limits
+        STRIP_MARGIN = self.settings["strip_margin"]
+        STRIP_WIDTH = PIN_WIDTH * N_NOTES + 2 * STRIP_MARGIN
+        pdf.line(x0, y - STRIP_WIDTH/2, x1, y - STRIP_WIDTH/2)
+        pdf.line(x0, y + STRIP_WIDTH/2, x1, y + STRIP_WIDTH/2)
+
+        return G_CLEF_Y
 
 
     def get_height(self):
