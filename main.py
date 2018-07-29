@@ -103,8 +103,8 @@ class MusicBoxPDFGenerator(FPDF):
     Represents a music box document.
     All units in mm except for fonts, which are in points.
     """
-    def __init__(self, n_notes, pin_width, strip_margin, tuning="C", start_note="C", start_octave=5, beat_width=8):
-        super().__init__("p", "mm", (279.4, 215.9))
+    def __init__(self, n_notes, pin_width, strip_margin, tuning="C", start_note="C", start_octave=5, beat_width=8, paper_size=(279.4, 215.9)):
+        super().__init__("p", "mm", paper_size)
         self.set_title("Testing this shit")
         self.set_author("Maximiliano Castro")
         self.set_auto_page_break(True)
@@ -135,14 +135,14 @@ class MusicBoxPDFGenerator(FPDF):
                                          song_title="Peazo de tema",
                                          song_author="Marciana")
         # Add notes to strip
-        STRIP_MARGIN = 1
-        current_y = - strip_generator.get_height() / 2 - STRIP_MARGIN + self.t_margin
+        STRIP_SEPARATION = 1
+        current_y = - strip_generator.get_height() / 2 - STRIP_SEPARATION + self.t_margin
 
         drawn_beats = 0
         while len(parsed_notes) > 0:
             print("> Created new strip")
             new_strip = strip_generator.new_strip(drawn_beats)
-            current_y += strip_generator.get_height() + STRIP_MARGIN
+            current_y += strip_generator.get_height() + STRIP_SEPARATION
             if current_y + strip_generator.get_height() / 2 > self.h - self.b_margin:
                 print("> Had to add page")
                 self.add_page()
@@ -303,7 +303,7 @@ class Strip:
         x0_adjusted = x0 + (current_y - y)
 
         # Draw strip limits
-        STRIP_WIDTH = PIN_WIDTH*N_NOTES + 2*STRIP_MARGIN
+        STRIP_WIDTH = PIN_WIDTH*(N_NOTES-1) + 2*STRIP_MARGIN
         x0_strip_angle = x0 + TRIANGLE_SIZE[1] + 5
 
         # Draw strip borders
@@ -355,7 +355,7 @@ class Strip:
         # Draw strip limits
         pdf.set_draw_color(0, 0, 0)
         STRIP_MARGIN = self.settings["strip_margin"]
-        STRIP_WIDTH = PIN_WIDTH * N_NOTES + 2 * STRIP_MARGIN
+        STRIP_WIDTH = PIN_WIDTH * (N_NOTES-1) + 2 * STRIP_MARGIN
         pdf.line(x0, y - STRIP_WIDTH/2, x1, y - STRIP_WIDTH/2)
         pdf.line(x0, y + STRIP_WIDTH/2, x1, y + STRIP_WIDTH/2)
 
@@ -568,12 +568,12 @@ def test_fpdf_drawing():
 def test_oop_document_drawing():
     doc = MusicBoxPDFGenerator(n_notes=15,
                                pin_width=2,
-                               strip_margin=10,
-                               beat_width=6,
+                               strip_margin=6.6,
+                               beat_width=4,
                                tuning="C",
                                start_note="C",
                                start_octave=4)
-    doc.generate("test5_long_song.mid", "delete_me.pdf")
+    doc.generate("test6_longer_song.mid", "delete_me.pdf")
 
 
 test_oop_document_drawing()
