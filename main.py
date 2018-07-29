@@ -251,7 +251,7 @@ class Strip:
 
         notes_left = self._draw_notes(pdf, x_start, x1, y, notes)
 
-        total_strip_beats = int((x1-x0)/BEAT_WIDTH)
+        total_strip_beats = int((x1 - x_start) / BEAT_WIDTH)
         return notes_left, total_strip_beats
 
     def _draw_header(self, pdf, x0, y):
@@ -370,7 +370,7 @@ class Strip:
 
         pdf.line(x0, y - 30, x0, y + 30) # debug
 
-        NOTE_RADIUS = 3
+        NOTE_RADIUS = 1.5
         total_strip_beats = int((x1 - x0) / BEAT_WIDTH)
         min_beat = self.first_beat
         max_beat = min_beat + total_strip_beats
@@ -399,18 +399,14 @@ class Strip:
             note_position = self.note_symbols.index(note) + (octave - START_OCTAVE)*len(self.note_symbols)
             return note_y0 - (note_position*PIN_WIDTH) - NOTE_RADIUS/2
 
-        pdf.set_fill_color(255, 0, 0)
-        pdf.ellipse(beat_to_x(min_beat), y, NOTE_RADIUS, NOTE_RADIUS, "F")
-        pdf.ellipse(beat_to_x(max_beat), y, NOTE_RADIUS, NOTE_RADIUS, "F")
-
         # Remove trailing beats before (error caused?)
         while notes and notes[0]["beat"] < min_beat:
             print("deleted note because it had time {}, which is outside {} - {}".format(notes[0]["beat"], min_beat, max_beat))
             notes.pop(0)
-
-
         # Draw notes inside strip
         pdf.set_fill_color(0, 0, 0)
+        last_line_width = pdf.line_width
+        pdf.set_line_width(NOTE_RADIUS*0.6)
         while len(notes) > 0:
             note = notes.pop(0)
             # pprint.pprint(note)
@@ -419,7 +415,8 @@ class Strip:
             n_octave = note["octave"]
             n_pitch = note["raw_pitch"]
             if n_beat > max_beat:
-                print("Reached out of strip note")
+                print("Reached out of strip note: {}:{}{}".format(n_beat, n_note, n_octave))
+                notes = [note] + notes
                 break
             if n_note not in self.note_symbols:
                 print("Omitting out of tune note '{}'".format(n_note))
@@ -431,8 +428,8 @@ class Strip:
                               _MidiProcessor.pitch_to_note(max_pitch)))
                 continue
             # Draw note
-            pdf.ellipse(beat_to_x(n_beat), note_to_y(n_note, n_octave), NOTE_RADIUS, NOTE_RADIUS, "F")
-
+            pdf.ellipse(beat_to_x(n_beat), note_to_y(n_note, n_octave), NOTE_RADIUS, NOTE_RADIUS, "B")
+        pdf.set_line_width(last_line_width)
         # for note in notes:
         #     if note["note"] not in self.note_symbols:
         #         print("Tried to draw '{}' which is out of tune")
@@ -443,7 +440,7 @@ class Strip:
         #     pdf.set_fill_color(0, 0, 0)
         #     pdf.ellipse(note_x-NOTE_RADIUS/2, note_y-NOTE_RADIUS/2, NOTE_RADIUS, NOTE_RADIUS, "F")
         #     notes = notes[1:]
-        return notes[1:]
+        return notes
 
 
 
@@ -576,7 +573,7 @@ def test_oop_document_drawing():
                                tuning="C",
                                start_note="C",
                                start_octave=4)
-    doc.generate("test3_chromatic.mid", "delete_me.pdf")
+    doc.generate("test5_long_song.mid", "delete_me.pdf")
 
 
 test_oop_document_drawing()
