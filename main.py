@@ -32,8 +32,12 @@ class _MidiProcessor:
         pass
 
     @staticmethod
-    def _pitch_to_note(midi_pitch_code):
+    def pitch_to_note(midi_pitch_code):
         return "C C# D D# E F F# G G# A A# B".split(" ")[midi_pitch_code % 12], -1 + int(midi_pitch_code/12)
+
+    @staticmethod
+    def note_to_pitch(note, octave):
+        return 12 * (octave+1) + "C C# D D# E F F# G G# A A# B".split(" ").index(note)
 
     @staticmethod
     def render_to_box(midi_object):
@@ -46,6 +50,7 @@ class _MidiProcessor:
 
         Returns
         -------
+        dict
 
         """
         midi_object.make_ticks_abs()
@@ -53,11 +58,12 @@ class _MidiProcessor:
         rendered = list()
         for event in midi_object[0]:
             if isinstance(event, midi.NoteOnEvent) and event.get_velocity() > 0:
-                note, octave = _MidiProcessor._pitch_to_note(event.get_pitch())
+                note, octave = _MidiProcessor.pitch_to_note(event.get_pitch())
                 rendered.append({
                     "note": note,
                     "octave": octave,
-                    "time": event.tick/resolution
+                    "beat": event.tick/resolution * 2,
+                    "raw_pitch": event.get_pitch()
                 })
         return rendered
 
@@ -91,12 +97,13 @@ def test_fpdf_templates():
     f.render("./delete_me.pdf")
     print("done")
 
+
 class MusicBoxPDFGenerator(FPDF):
     """
     Represents a music box document.
     All units in mm except for fonts, which are in points.
     """
-    def __init__(self, n_notes, pin_width, strip_margin, tuning="C", start_note="C", beat_width=8):
+    def __init__(self, n_notes, pin_width, strip_margin, tuning="C", start_note="C", start_octave=5, beat_width=8):
         super().__init__("p", "mm", (279.4, 215.9))
         self.set_title("Testing this shit")
         self.set_author("Maximiliano Castro")
@@ -111,7 +118,8 @@ class MusicBoxPDFGenerator(FPDF):
             "strip_margin": strip_margin,
             "beat_width": beat_width,
             "tuning": tuning,
-            "start_note": start_note
+            "start_note": start_note,
+            "start_octave": start_octave
         }
         self.generated = False
 
@@ -124,30 +132,33 @@ class MusicBoxPDFGenerator(FPDF):
 
         self.add_page()
         strip_generator = StripGenerator(settings=self.settings,
-                                         song_title="Cancion qlia",
-                                         song_author="Autor qliao")
+                                         song_title="Peazo de tema",
+                                         song_author="Marciana")
         # Add notes to strip
         STRIP_MARGIN = 1
         current_y = - strip_generator.get_height() / 2 - STRIP_MARGIN + self.t_margin
 
+        drawn_beats = 0
         while len(parsed_notes) > 0:
             print("> Created new strip")
-            new_strip = strip_generator.new_strip()
+            new_strip = strip_generator.new_strip(drawn_beats)
             current_y += strip_generator.get_height() + STRIP_MARGIN
             if current_y + strip_generator.get_height() / 2 > self.h - self.b_margin:
                 print("> Had to add page")
                 self.add_page()
                 current_y = strip_generator.get_height() / 2 + self.t_margin
-            parsed_notes = new_strip.draw(pdf=self,
-                                          x0=self.l_margin,
-                                          x1=self.w - self.r_margin,
-                                          y=current_y,
-                                          notes=parsed_notes)
+            parsed_notes, total_strip_beats = new_strip.draw(pdf=self,
+                                                             x0=self.l_margin,
+                                                             x1=self.w - self.r_margin,
+                                                             y=current_y,
+                                                             notes=parsed_notes)
+            drawn_beats += total_strip_beats
             print("> Drew a strip")
 
         self.generated = True
         self.output(output_file, "F")
         print("Done, Saved as {}".format(output_file))
+
 
 class StripGenerator:
     def __init__(self, settings, song_title=None, song_author=None):
@@ -170,7 +181,7 @@ class StripGenerator:
         print("Created strip generator. Notes: {}".format(', '.join(self.note_symbols)))
         self.has_header = False
 
-    def new_strip(self):
+    def new_strip(self, first_beat_position):
         if not self.has_header:
             self.has_header = True
             return Strip(song_title=self.song_title,
@@ -180,7 +191,8 @@ class StripGenerator:
                          is_first=True)
         else:
             return Strip(settings=self.settings,
-                         note_symbols=self.note_symbols)
+                         note_symbols=self.note_symbols,
+                         first_beat=first_beat_position)
 
     def get_height(self):
         PIN_WIDTH = self.settings["pin_width"]
@@ -190,16 +202,37 @@ class StripGenerator:
 
 
 class Strip:
-    def __init__(self, settings, note_symbols, is_first=False, song_title=None, song_author=None):
+    def __init__(self, settings, note_symbols, first_beat=0, is_first=False, song_title=None, song_author=None):
+        """
+        Creates a "Strip" representing a paper strip which will contain the notes
+
+        Parameters
+        ----------
+        settings: dict
+            Dictionary with the main music box settings
+        note_symbols: List[str]
+            Notes present in the scale
+        first_beat: int
+            Relative position of this strip's first beat
+        is_first: bool
+            If this strip is the first one (and should have a header)
+        song_title: str
+            Song title
+        song_author: str
+            Song author
+        """
         self.is_first = is_first
         self.settings = settings
         self.note_symbols = note_symbols
         self.song_title = song_title if song_title else "NO-TITLE"
         self.song_author = song_author if song_author else "NO-AUTHOR"
+        self.first_beat = first_beat
 
     def draw(self, pdf, x0, x1, y, notes):
         """ Draws the strip in the pdf document """
         x_start = x0
+        BEAT_WIDTH = self.settings["beat_width"]
+
         if self.is_first:
             # Draw strip header
             x_start = self._draw_header(pdf, x_start, y)
@@ -214,7 +247,12 @@ class Strip:
             pdf.image("g_clef.png", x=x_start,
                       y=g_clef_y - G_CLEF_H / 1.8,
                       h=G_CLEF_H)
-        return notes[1:]
+            x_start += 2*BEAT_WIDTH
+
+        notes_left = self._draw_notes(pdf, x_start, x1, y, notes)
+
+        total_strip_beats = int((x1-x0)/BEAT_WIDTH)
+        return notes_left, total_strip_beats
 
     def _draw_header(self, pdf, x0, y):
         #def show_pointer(s="O"):
@@ -295,7 +333,7 @@ class Strip:
                 pdf.line(x0 + pdf.line_width/2, y - STRIP_WIDTH / 2 + PIN_WIDTH * h_line + PIN_WIDTH / 2,
                          x0 + (x1-x0) - ((x1-x0) % BEAT_WIDTH) - pdf.line_width/2, y - STRIP_WIDTH / 2 + PIN_WIDTH * h_line + PIN_WIDTH / 2)
                 pdf.set_line_width(current_line_width)
-                if (G_CLEF_NOTES[-1] == "G"):
+                if G_CLEF_NOTES[-1] == "G":
                     # store g clef position for later
                     G_CLEF_Y = y - STRIP_WIDTH / 2 + PIN_WIDTH * h_line + PIN_WIDTH / 2
                 G_CLEF_NOTES = G_CLEF_NOTES[:-1]
@@ -322,6 +360,91 @@ class Strip:
         pdf.line(x0, y + STRIP_WIDTH/2, x1, y + STRIP_WIDTH/2)
 
         return G_CLEF_Y
+
+    def _draw_notes(self, pdf, x0, x1, y, notes):
+        N_NOTES = self.settings["n_notes"]
+        BEAT_WIDTH = self.settings["beat_width"]
+        PIN_WIDTH = self.settings["pin_width"]
+        STRIP_WIDTH = (N_NOTES-1) * PIN_WIDTH
+        pdf.set_draw_color(0, 0, 0)
+
+        pdf.line(x0, y - 30, x0, y + 30) # debug
+
+        NOTE_RADIUS = 3
+        total_strip_beats = int((x1 - x0) / BEAT_WIDTH)
+        min_beat = self.first_beat
+        max_beat = min_beat + total_strip_beats
+
+        # To filter out notes out of admitted pitch
+        min_pitch = _MidiProcessor.note_to_pitch(self.settings["start_note"], self.settings["start_octave"])
+        max_pitch = _MidiProcessor.note_to_pitch(self.note_symbols[self.note_symbols.index(self.settings["start_note"])
+                                                                   + N_NOTES % len(self.note_symbols) - 1],
+                                                 self.settings["start_octave"] + int(N_NOTES/len(self.note_symbols)))
+        print("This strip: Beats: {} - {}, Note range: {} - {}. Notes left: {}"
+              .format(min_beat, max_beat, _MidiProcessor.pitch_to_note(min_pitch), _MidiProcessor.pitch_to_note(max_pitch), len(notes)))
+
+        def debug_circle(x, y):
+            last_color = pdf.fill_color
+            pdf.set_fill_color(0, 0, 255)
+            RADIUS = 2
+            pdf.ellipse(x-RADIUS/2, y-RADIUS/2, RADIUS, RADIUS, "B")
+            pdf.fill_color = last_color
+
+        def beat_to_x(beat):
+            return x0 + (beat - min_beat)*BEAT_WIDTH - NOTE_RADIUS/2
+
+        def note_to_y(note, octave):
+            note_y0 = y + STRIP_WIDTH/2
+            START_OCTAVE = self.settings["start_octave"]
+            note_position = self.note_symbols.index(note) + (octave - START_OCTAVE)*len(self.note_symbols)
+            return note_y0 - (note_position*PIN_WIDTH) - NOTE_RADIUS/2
+
+        pdf.set_fill_color(255, 0, 0)
+        pdf.ellipse(beat_to_x(min_beat), y, NOTE_RADIUS, NOTE_RADIUS, "F")
+        pdf.ellipse(beat_to_x(max_beat), y, NOTE_RADIUS, NOTE_RADIUS, "F")
+
+        # Remove trailing beats before (error caused?)
+        while notes and notes[0]["beat"] < min_beat:
+            print("deleted note because it had time {}, which is outside {} - {}".format(notes[0]["beat"], min_beat, max_beat))
+            notes.pop(0)
+
+
+        # Draw notes inside strip
+        pdf.set_fill_color(0, 0, 0)
+        while len(notes) > 0:
+            note = notes.pop(0)
+            # pprint.pprint(note)
+            n_beat = note["beat"]
+            n_note = note["note"]
+            n_octave = note["octave"]
+            n_pitch = note["raw_pitch"]
+            if n_beat > max_beat:
+                print("Reached out of strip note")
+                break
+            if n_note not in self.note_symbols:
+                print("Omitting out of tune note '{}'".format(n_note))
+                continue
+            if not min_pitch <= n_pitch <= max_pitch:
+                print("Cannot draw note: {} is out of {} - {})"
+                      .format(_MidiProcessor.pitch_to_note(n_pitch),
+                              _MidiProcessor.pitch_to_note(min_pitch),
+                              _MidiProcessor.pitch_to_note(max_pitch)))
+                continue
+            # Draw note
+            pdf.ellipse(beat_to_x(n_beat), note_to_y(n_note, n_octave), NOTE_RADIUS, NOTE_RADIUS, "F")
+
+        # for note in notes:
+        #     if note["note"] not in self.note_symbols:
+        #         print("Tried to draw '{}' which is out of tune")
+        #         continue
+        #     print("Drawing at time {}".format(note["time"]))
+        #     note_x = beat_x0 + (note["time"] - self.first_beat_position) * BEAT_WIDTH
+        #     note_y = y
+        #     pdf.set_fill_color(0, 0, 0)
+        #     pdf.ellipse(note_x-NOTE_RADIUS/2, note_y-NOTE_RADIUS/2, NOTE_RADIUS, NOTE_RADIUS, "F")
+        #     notes = notes[1:]
+        return notes[1:]
+
 
 
 def test_fpdf_drawing():
@@ -451,8 +574,9 @@ def test_oop_document_drawing():
                                strip_margin=10,
                                beat_width=6,
                                tuning="C",
-                               start_note="C")
-    doc.generate("test.mid", "delete_me.pdf")
+                               start_note="C",
+                               start_octave=4)
+    doc.generate("test3_chromatic.mid", "delete_me.pdf")
 
 
 test_oop_document_drawing()
