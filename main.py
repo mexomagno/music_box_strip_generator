@@ -56,15 +56,17 @@ class _MidiProcessor:
         midi_object.make_ticks_abs()
         resolution = midi_object.resolution
         rendered = list()
-        for event in midi_object[0]:
-            if isinstance(event, midi.NoteOnEvent) and event.get_velocity() > 0:
-                note, octave = _MidiProcessor.pitch_to_note(event.get_pitch())
-                rendered.append({
-                    "note": note,
-                    "octave": octave,
-                    "beat": event.tick/resolution * 2,
-                    "raw_pitch": event.get_pitch()
-                })
+        for track in midi_object:
+            for event in track:
+                if isinstance(event, midi.NoteOnEvent) and event.get_velocity() > 0:
+                    note, octave = _MidiProcessor.pitch_to_note(event.get_pitch())
+                    rendered.append({
+                        "note": note,
+                        "octave": octave,
+                        "beat": event.tick/resolution * 2,
+                        "raw_pitch": event.get_pitch()
+                    })
+        rendered = sorted(rendered, key=lambda k:k["beat"])
         return rendered
 
 
@@ -368,8 +370,6 @@ class Strip:
         STRIP_WIDTH = (N_NOTES-1) * PIN_WIDTH
         pdf.set_draw_color(0, 0, 0)
 
-        pdf.line(x0, y - 30, x0, y + 30) # debug
-
         NOTE_RADIUS = 1.5
         total_strip_beats = int((x1 - x0) / BEAT_WIDTH)
         min_beat = self.first_beat
@@ -572,8 +572,9 @@ def test_oop_document_drawing():
                                beat_width=4,
                                tuning="C",
                                start_note="C",
-                               start_octave=4)
-    doc.generate("test6_longer_song.mid", "delete_me.pdf")
+                               start_octave=4,
+                               paper_size=(369.0, 215.9))
+    doc.generate("bob.mid", "delete_me.pdf")
 
 
 test_oop_document_drawing()
