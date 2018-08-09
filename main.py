@@ -3,11 +3,10 @@
 """
 Basic example of usage
 """
-
+import os
+import argparse
 from fpdf import FPDF
-from fpdf import Template
 import midi
-import pprint
 
 
 class _MidiProcessor:
@@ -70,42 +69,12 @@ class _MidiProcessor:
         return rendered
 
 
-def test_fpdf_templates():
-    elements = list()
-    elements.append({'name': 'company_name', 'type': 'T', 'x1': 17.0, 'y1': 32.5, 'x2': 115.0, 'y2': 37.5,
-                     'font': 'Arial', 'size': 12.0, 'bold': 1, 'italic': 0, 'underline': 0, 'foreground': 0,
-                     'background': 0, 'align': 'I', 'text': 'Testeando la wea y ke paza bastardo qlo','priority': 2,})
-    for x in range(2):
-        last_y = elements[-1]["y2"]
-        elements.append({
-            "name": "box_{}".format(x+1),
-            "type": "B",
-            "x1": 10, "y1": last_y,
-            "x2": 200, "y2": last_y + 50,
-            "font": "Arial",
-            "size": "10.0",
-            "bold": 1,
-            "italic": 0,
-            "underline": 0,
-            "foreground": 1,
-            "background": 0,
-            "align": "I",
-            "text": u"Caja {}".format(x+1),
-            "priority": 0
-        })
-    f = Template(format="letter", elements=elements, title="Testeando the template wea")
-    f.add_page()
-    print("Rendering")
-    f.render("./delete_me.pdf")
-    print("done")
-
-
 class MusicBoxPDFGenerator(FPDF):
     """
     Represents a music box document.
     All units in mm except for fonts, which are in points.
     """
-    def __init__(self, n_notes, pin_width, strip_margin, tuning="C", start_note="C", start_octave=5, beat_width=8, paper_size=(279.4, 215.9)):
+    def __init__(self, n_notes, pin_width, strip_margin, strip_separation=0, tuning="C", start_note="C", start_octave=5, beat_width=8, paper_size=(279.4, 215.9)):
         super().__init__("p", "mm", paper_size)
         self.set_title("Testing this shit")
         self.set_author("Maximiliano Castro")
@@ -121,7 +90,8 @@ class MusicBoxPDFGenerator(FPDF):
             "beat_width": beat_width,
             "tuning": tuning,
             "start_note": start_note,
-            "start_octave": start_octave
+            "start_octave": start_octave,
+            "strip_separation": strip_separation
         }
         self.generated = False
 
@@ -137,7 +107,7 @@ class MusicBoxPDFGenerator(FPDF):
                                          song_title=song_title,
                                          song_author=song_author)
         # Add notes to strip
-        STRIP_SEPARATION = 1
+        STRIP_SEPARATION = self.settings["strip_separation"]
         current_y = - strip_generator.get_height() / 2 - STRIP_SEPARATION + self.t_margin
 
         drawn_beats = 0
@@ -200,7 +170,7 @@ class StripGenerator:
         PIN_WIDTH = self.settings["pin_width"]
         N_NOTES = self.settings["n_notes"]
         STRIP_MARGIN = self.settings["strip_margin"]
-        return PIN_WIDTH*N_NOTES + 2*STRIP_MARGIN
+        return PIN_WIDTH*(N_NOTES-1) + 2*STRIP_MARGIN
 
 
 class Strip:
@@ -442,129 +412,6 @@ class Strip:
         #     notes = notes[1:]
         return notes
 
-
-
-def test_fpdf_drawing():
-    # Crear wea
-    pdf = FPDF("p", "mm", (279.4, 215.9))
-    pdf.set_title("Testing this shit")
-    pdf.set_author("Maximiliano Castro")
-    pdf.set_auto_page_break(True)
-    pdf.set_margins(8,6,8)
-    pdf.alias_nb_pages()
-    pdf.compress = True
-
-    # Añadir contenido
-    pdf.add_page()
-    # Agregar título
-    pdf.set_font("arial", "B", 20)
-    pdf.cell(w=0, h=10, txt="Wena ctm probandoóó ññ",
-             border=1, ln=1, align="C")
-    # Dibujar weas
-    N_NOTES = 15
-    NOTE_NAMES = "CDEFGAB"
-    G_CLEF_NOTES = "EGBDF"
-    G_CLEF_Y = -1
-    NOTE_OFFSET = 0
-    NOTE_SEPARATION = 2
-    BEATS_PER_STRIP = 60
-    FIRST_STRIP_OFFSET = 20
-    x0 = pdf.l_margin + FIRST_STRIP_OFFSET
-    x1 = pdf.w - pdf.r_margin
-    PARTITURE_W = x1-x0
-    y0 = 30
-    y1 = y0 + NOTE_SEPARATION*(N_NOTES-1)
-    # Dibujar líneas horizontales notas
-    pdf.set_font("arial", "B", 7)
-    pdf.set_draw_color(140, 140, 140)
-    for n in range(N_NOTES):
-        y = y0 + n*NOTE_SEPARATION
-        if len(G_CLEF_NOTES) != 0 and ''.join(reversed(NOTE_NAMES))[(n+len(NOTE_NAMES)-(N_NOTES%len(NOTE_NAMES)))%len(NOTE_NAMES)] == G_CLEF_NOTES[-1]:
-            current_line_width = pdf.line_width
-            pdf.set_line_width(1)
-            pdf.line(x0+pdf.line_width/2, y, x1-pdf.line_width/2, y)
-            pdf.set_line_width(current_line_width)
-            if (G_CLEF_NOTES[-1] == "G"):
-                # draw G clef
-                G_CLEF_Y = y
-            G_CLEF_NOTES = G_CLEF_NOTES[:-1]
-        else:
-            pdf.line(x0, y, x1, y)
-    # draw note chars and song header
-    pdf.rotate(90, x0, y0 + (N_NOTES-1)*NOTE_SEPARATION)
-    rotated_y = y0 + (N_NOTES-1)*NOTE_SEPARATION
-    for n in range(N_NOTES):
-        note_char = NOTE_NAMES[(n + NOTE_OFFSET) % len(NOTE_NAMES)]
-        pdf.text(x0 - pdf.get_string_width(note_char)/2 + n * NOTE_SEPARATION,
-                 rotated_y - pdf.font_size / 3,
-                 note_char)
-        # pdf.rotate(270, y+pdf.font_size/3, x0)
-    # Write song title
-    STRIP_MARGIN_V = 7
-    TOTAL_STRIP_HEIGHT = NOTE_SEPARATION*(N_NOTES-1) + 2 * STRIP_MARGIN_V
-    SONG_TITLE = "Cancion culia de un culiao"
-    SONG_AUTHOR = "Culiao con nombre largo"
-    MAX_TITLE_FONT_SIZE_PT = 30
-    pdf.set_font("courier", "B", MAX_TITLE_FONT_SIZE_PT)
-    MAX_TITLE_FONT_SIZE = pdf.font_size
-    while pdf.get_string_width(SONG_TITLE) > TOTAL_STRIP_HEIGHT:
-        pdf.set_font_size(pdf.font_size_pt - 0.1)
-    pdf.text(x=x0 + (NOTE_SEPARATION * (N_NOTES - 1))/2 -
-             pdf.get_string_width(SONG_TITLE) / 2,
-             y=rotated_y - pdf.font_size*3,
-             txt=SONG_TITLE)
-    pdf.set_font_size(15)
-    while pdf.get_string_width(SONG_TITLE) > TOTAL_STRIP_HEIGHT:
-        pdf.set_font_size(pdf.font_size_pt - 0.1)
-    pdf.text(x=x0 + (NOTE_SEPARATION * (N_NOTES - 1))/2 -
-             pdf.get_string_width(SONG_AUTHOR) / 2,
-             y=rotated_y - pdf.font_size*1.7,
-             txt=SONG_AUTHOR)
-
-    # add triangle
-    TRIANGLE_SIZE = (8, 8)
-    pdf.image(name="triangle_tiny.png",
-              x=x0 + (NOTE_SEPARATION * (N_NOTES - 1))/2 - TRIANGLE_SIZE[0]/2,
-              y=rotated_y - MAX_TITLE_FONT_SIZE*2.5 + TRIANGLE_SIZE[1]/2,
-              w=TRIANGLE_SIZE[0],
-              h=TRIANGLE_SIZE[1])
-
-    pdf.rotate(0, rotated_y, x0)
-    # Verticales tempo
-    for n in range(BEATS_PER_STRIP + 1):
-        x = x0 + n*PARTITURE_W/BEATS_PER_STRIP
-        if n%2 == 0:
-            pdf.line(x, y0, x, y0 + NOTE_SEPARATION*(N_NOTES-1))
-        else:
-            pdf.dashed_line(x, y0, x, y0 + NOTE_SEPARATION*(N_NOTES-1),
-                            dash_length=1.6*NOTE_SEPARATION,
-                            space_length=1.1*NOTE_SEPARATION)
-
-    # Divisores strip
-    corner_x = x0-MAX_TITLE_FONT_SIZE*1.3
-    pdf.line(corner_x, y0 - STRIP_MARGIN_V,
-             pdf.w, y0 - STRIP_MARGIN_V)
-    pdf.line(corner_x, y1 + STRIP_MARGIN_V,
-             pdf.w, y1 + STRIP_MARGIN_V)
-    pdf.line(corner_x, y0 - STRIP_MARGIN_V,
-             pdf.l_margin*0.2, y0+(y1-y0)/2)
-    pdf.line(pdf.l_margin*0.2, y0+(y1-y0)/2,
-             corner_x, y1 + STRIP_MARGIN_V)
-
-    # draw g clef
-    if G_CLEF_Y > 0:
-        G_CLEF_H = NOTE_SEPARATION * 15
-        pdf.image("g_clef.png", x=x0,
-                  y=G_CLEF_Y - G_CLEF_H / 1.8,
-                  h=G_CLEF_H)
-
-    # draw notes
-    # We could use a plotting approach, where each duration can be directly mapped to a distance from the origin
-
-
-    # Guardar
-    pdf.output("delete_me.pdf", "F")
-
 def test_oop_document_drawing():
     doc = MusicBoxPDFGenerator(n_notes=15,
                                pin_width=2,
@@ -572,11 +419,127 @@ def test_oop_document_drawing():
                                beat_width=4,
                                tuning="C",
                                start_note="C",
-                               start_octave=4)
+                               start_octave=4,
+                               paper_size=(770.0, 129.0))
     doc.generate(midi_file="bob.mid",
                  output_file="delete_me.pdf",
                  song_title="Three little birds",
                  song_author="Bob Marley")
 
 
-test_oop_document_drawing()
+def parse_args():
+    # Define custom arg types
+    def _restricted_pin_number(x):
+        x = int(x)
+        min = 15
+        max = 100
+        if not min <= x <= max:
+            raise argparse.ArgumentTypeError("{} out of range [{}, {}]".format(x, min, max))
+        return x
+
+    def _restricted_pin_width(x):
+        x = float(x)
+        min = 0.1
+        max = 4
+        if not min <= x <= max:
+            raise argparse.ArgumentTypeError("{} out of range [{}, {}]".format(x, min, max))
+        return x
+
+    def _restricted_beat_width(x):
+        x = float(x)
+        min = 1
+        max = 20
+        if not min <= x <= max:
+            raise argparse.ArgumentTypeError("{} out of range [{}, {}]".format(x, min, max))
+        return x
+
+    def _restricted_strip_padding(x):
+        x = float(x)
+        min = 0
+        max = 15
+        if not min <= x <= max:
+            raise argparse.ArgumentTypeError("{} out of range [{}, {}]".format(x, min, max))
+        return x
+
+    def _restricted_strip_separation(x):
+        x = float(x)
+        min = 0
+        max = 30
+        if not min <= x <= max:
+            raise argparse.ArgumentTypeError("{} out of range [{}, {}]".format(x, min, max))
+        return x
+
+    def _midi_file(s):
+        # check if exists
+        if not os.path.exists(s):
+            raise argparse.ArgumentTypeError("File '{}' doesn't exist".format(s))
+        _, ext = os.path.splitext(s)
+        if ext.lower() != ".mid":
+            raise argparse.ArgumentTypeError("Unsupported extension: '{}'. Use a midi file only".format(s))
+        # Check if valid midi file
+        try:
+            midi.read_midifile(s)
+        except Exception as e:
+            raise argparse.ArgumentTypeError("Could not process midi file! '{}'".format(e))
+        return s
+
+    def _title_string(s):
+        min_l = 1
+        max_l = 50
+        if not min_l <= len(s) <= max_l:
+            raise argparse.ArgumentTypeError("Length of '{}' is out of range '[{}, {}]".format(len(s), min_l, max_l))
+        return s
+
+    ap = argparse.ArgumentParser(description="MIDI Music paper strips generator for Kikkerland's music box")
+    ap.add_argument("midi_file", metavar="MIDI_FILE", type=_midi_file, help="MIDI file to parse")
+    ap.add_argument("song_title", metavar="SONG_TITLE", type=_title_string, help="Title of the song")
+    ap.add_argument("song_author", metavar="SONG_AUTHOR", type=_title_string, help="Author of the song")
+
+    ap.add_argument("--paper_size", "-s", help="(mm) Size of the paper where to print", nargs=2, default=[215.9, 279.4])
+    ap.add_argument("--pin_number", "-n", help="Number of notes the box can reproduce", type=_restricted_pin_number, default=15)
+    ap.add_argument("--pinwidth", "-pw", help="(mm) Physical separation between note pins", type=_restricted_pin_width, default=2.0)
+    ap.add_argument("--beatwidth", "-bw", help="(mm) Size of eighth notes. Affects song speed", type=_restricted_beat_width, default=4.0)
+    ap.add_argument("--strip_padding", "-sm", help="(mm) Additional strip width", type=_restricted_strip_padding, default=6.6)
+    ap.add_argument("--strip_separation", "-ss", help="(mm) Separation between strips", type=_restricted_strip_separation, default=0)
+    return ap.parse_args()
+
+
+def main():
+    # Get and parse args
+    parsed_args = parse_args()
+    # Generate instance
+    doc = MusicBoxPDFGenerator(n_notes=parsed_args.pin_number,
+                               pin_width=parsed_args.pinwidth,
+                               strip_margin=parsed_args.strip_padding,
+                               strip_separation=parsed_args.strip_separation,
+                               beat_width=parsed_args.beatwidth,
+                               tuning="C",
+                               start_note="C",
+                               start_octave=4,
+                               paper_size=parsed_args.paper_size)
+
+    print("Will generate with settings:\n"
+          "\tPaper size: {paper_size}\n"
+          "\tPin number: {pin_number}\n"
+          "\tStrip padding: {strip_padding}\n"
+          "\tStrip separation: {strip_separation}\n"
+          "\tBeat width: {beat_width}\n"
+          "\tPin size: {pin_size}\n"
+          .format(paper_size=parsed_args.paper_size,
+                  pin_number=parsed_args.pin_number,
+                  strip_padding=parsed_args.strip_padding,
+                  strip_separation=parsed_args.strip_separation,
+                  beat_width=parsed_args.beatwidth,
+                  pin_size=parsed_args.pinwidth))
+
+    print("Starting document generation...")
+    pdf_name = "{}.pdf".format(os.path.splitext(os.path.basename(parsed_args.midi_file))[0])
+    doc.generate(midi_file=parsed_args.midi_file,
+                 output_file=pdf_name,
+                 song_title=parsed_args.song_title,
+                 song_author=parsed_args.song_author)
+
+    print("Done. Generated as '{}'".format(pdf_name))
+
+if __name__ == "__main__":
+    main()
