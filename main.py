@@ -125,7 +125,7 @@ class MusicBoxPDFGenerator(FPDF):
         }
         self.generated = False
 
-    def generate(self, midi_file, output_file):
+    def generate(self, midi_file, output_file, song_title="NO-TITLE", song_author="NO-AUTHOR"):
         if self.generated:
             raise RuntimeError("Document was already generated!")
 
@@ -134,8 +134,8 @@ class MusicBoxPDFGenerator(FPDF):
 
         self.add_page()
         strip_generator = StripGenerator(settings=self.settings,
-                                         song_title="Peazo de tema",
-                                         song_author="Marciana")
+                                         song_title=song_title,
+                                         song_author=song_author)
         # Add notes to strip
         STRIP_SEPARATION = 1
         current_y = - strip_generator.get_height() / 2 - STRIP_SEPARATION + self.t_margin
@@ -572,9 +572,11 @@ def test_oop_document_drawing():
                                beat_width=4,
                                tuning="C",
                                start_note="C",
-                               start_octave=4,
-                               paper_size=(369.0, 215.9))
-    doc.generate("bob.mid", "delete_me.pdf")
+                               start_octave=4)
+    doc.generate(midi_file="bob.mid",
+                 output_file="delete_me.pdf",
+                 song_title="Three little birds",
+                 song_author="Bob Marley")
 
 
 test_oop_document_drawing()
