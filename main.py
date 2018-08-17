@@ -467,10 +467,16 @@ def parse_args():
             raise argparse.ArgumentTypeError("Length of '{}' is out of range '[{}, {}]".format(len(s), min_l, max_l))
         return s
 
+    def _real_dir(s):
+        if not os.path.exists(s):
+            raise argparse.ArgumentTypeError("Directory '{}' doesn't exist".format(s))
+        return s
+
     ap = argparse.ArgumentParser(description="MIDI Music paper strips generator for Kikkerland's music box")
     ap.add_argument("midi_file", metavar="MIDI_FILE", type=_midi_file, help="MIDI file to parse")
     ap.add_argument("song_title", metavar="SONG_TITLE", type=_title_string, help="Title of the song")
     ap.add_argument("song_author", metavar="SONG_AUTHOR", type=_title_string, help="Author of the song")
+    ap.add_argument("output_dir", metavar="OUTPUT_DIR", type=_real_dir, help="Directory where to put the output", nargs="?")
 
     ap.add_argument("--paper_size", "-s", help="(mm) Size of the paper where to print", nargs=2, default=[215.9, 279.4], type=float)
     ap.add_argument("--pin_number", "-n", help="Number of notes the box can reproduce", type=_restricted_pin_number, default=15)
@@ -478,7 +484,10 @@ def parse_args():
     ap.add_argument("--beatwidth", "-bw", help="(mm) Size of eighth notes. Affects song speed", type=_restricted_beat_width, default=4.0)
     ap.add_argument("--strip_padding", "-sm", help="(mm) Additional strip width", type=_restricted_strip_padding, default=6.6)
     ap.add_argument("--strip_separation", "-ss", help="(mm) Separation between strips", type=_restricted_strip_separation, default=0)
-    return ap.parse_args()
+    args = ap.parse_args()
+    if not args.output_dir:
+        args.output_dir = os.path.dirname(args.midi_file)
+    return args
 
 
 def main():
@@ -502,12 +511,14 @@ def main():
           "\tStrip separation: {strip_separation}\n"
           "\tBeat width: {beat_width}\n"
           "\tPin size: {pin_size}\n"
+          "\tOutput dir: {out_dir}\n"
           .format(paper_size=parsed_args.paper_size,
                   pin_number=parsed_args.pin_number,
                   strip_padding=parsed_args.strip_padding,
                   strip_separation=parsed_args.strip_separation,
                   beat_width=parsed_args.beatwidth,
-                  pin_size=parsed_args.pinwidth))
+                  pin_size=parsed_args.pinwidth,
+                  out_dir=parsed_args.output_dir))
 
     print("Starting document generation...")
     # Create unique pdf name located where midi file is
@@ -515,16 +526,16 @@ def main():
     pdf_name_core = "{}".format(os.path.splitext(os.path.basename(parsed_args.midi_file))[0])
     pdf_name = "{}.pdf".format(pdf_name_core)
     n = 0
-    while os.path.exists(os.path.join(midi_folder, "{}".format(pdf_name))):
+    while os.path.exists(os.path.join(parsed_args.output_dir, "{}".format(pdf_name))):
         n += 1
         pdf_name = "{}_{}.pdf".format(pdf_name_core, n)
     # generate
     doc.generate(midi_file=parsed_args.midi_file,
-                 output_file=os.path.join(midi_folder, pdf_name),
+                 output_file=os.path.join(parsed_args.output_dir, pdf_name),
                  song_title=parsed_args.song_title,
                  song_author=parsed_args.song_author)
 
-    print("Done. Generated as '{}'".format(os.path.join(midi_folder, pdf_name)))
+    print("Done. Generated as '{}'".format(os.path.join(parsed_args.output_dir, pdf_name)))
 
 if __name__ == "__main__":
     main()
