@@ -1,7 +1,7 @@
 # coding=utf-8
 
 """
-Basic example of usage
+Contains all the logic to generate the paper strips
 """
 import os
 import argparse
@@ -9,7 +9,7 @@ from fpdf import FPDF
 import midi
 
 
-class _MidiProcessor:
+class _MidiParser:
     @staticmethod
     def fit_to_tuning(midi_object, tuning):
         """ Force chromatism into tuning """
@@ -58,7 +58,7 @@ class _MidiProcessor:
         for track in midi_object:
             for event in track:
                 if isinstance(event, midi.NoteOnEvent) and event.get_velocity() > 0:
-                    note, octave = _MidiProcessor.pitch_to_note(event.get_pitch())
+                    note, octave = _MidiParser.pitch_to_note(event.get_pitch())
                     rendered.append({
                         "note": note,
                         "octave": octave,
@@ -100,7 +100,7 @@ class MusicBoxPDFGenerator(FPDF):
             raise RuntimeError("Document was already generated!")
 
         # Parse midi file
-        parsed_notes = _MidiProcessor.render_to_box(midi.read_midifile(midi_file))
+        parsed_notes = _MidiParser.render_to_box(midi.read_midifile(midi_file))
 
         self.add_page()
         strip_generator = StripGenerator(settings=self.settings,
@@ -346,12 +346,12 @@ class Strip:
         max_beat = min_beat + total_strip_beats
 
         # To filter out notes out of admitted pitch
-        min_pitch = _MidiProcessor.note_to_pitch(self.settings["start_note"], self.settings["start_octave"])
-        max_pitch = _MidiProcessor.note_to_pitch(self.note_symbols[self.note_symbols.index(self.settings["start_note"])
-                                                                   + N_NOTES % len(self.note_symbols) - 1],
-                                                 self.settings["start_octave"] + int(N_NOTES/len(self.note_symbols)))
+        min_pitch = _MidiParser.note_to_pitch(self.settings["start_note"], self.settings["start_octave"])
+        max_pitch = _MidiParser.note_to_pitch(self.note_symbols[self.note_symbols.index(self.settings["start_note"])
+                                                                + N_NOTES % len(self.note_symbols) - 1],
+                                              self.settings["start_octave"] + int(N_NOTES/len(self.note_symbols)))
         print("This strip: Beats: {} - {}, Note range: {} - {}. Notes left: {}"
-              .format(min_beat, max_beat, _MidiProcessor.pitch_to_note(min_pitch), _MidiProcessor.pitch_to_note(max_pitch), len(notes)))
+              .format(min_beat, max_beat, _MidiParser.pitch_to_note(min_pitch), _MidiParser.pitch_to_note(max_pitch), len(notes)))
 
         def debug_circle(x, y):
             last_color = pdf.fill_color
@@ -393,38 +393,14 @@ class Strip:
                 continue
             if not min_pitch <= n_pitch <= max_pitch:
                 print("Cannot draw note: {} is out of {} - {})"
-                      .format(_MidiProcessor.pitch_to_note(n_pitch),
-                              _MidiProcessor.pitch_to_note(min_pitch),
-                              _MidiProcessor.pitch_to_note(max_pitch)))
+                      .format(_MidiParser.pitch_to_note(n_pitch),
+                              _MidiParser.pitch_to_note(min_pitch),
+                              _MidiParser.pitch_to_note(max_pitch)))
                 continue
             # Draw note
             pdf.ellipse(beat_to_x(n_beat), note_to_y(n_note, n_octave), NOTE_RADIUS, NOTE_RADIUS, "B")
         pdf.set_line_width(last_line_width)
-        # for note in notes:
-        #     if note["note"] not in self.note_symbols:
-        #         print("Tried to draw '{}' which is out of tune")
-        #         continue
-        #     print("Drawing at time {}".format(note["time"]))
-        #     note_x = beat_x0 + (note["time"] - self.first_beat_position) * BEAT_WIDTH
-        #     note_y = y
-        #     pdf.set_fill_color(0, 0, 0)
-        #     pdf.ellipse(note_x-NOTE_RADIUS/2, note_y-NOTE_RADIUS/2, NOTE_RADIUS, NOTE_RADIUS, "F")
-        #     notes = notes[1:]
         return notes
-
-def test_oop_document_drawing():
-    doc = MusicBoxPDFGenerator(n_notes=15,
-                               pin_width=2,
-                               strip_margin=6.6,
-                               beat_width=4,
-                               tuning="C",
-                               start_note="C",
-                               start_octave=4,
-                               paper_size=(770.0, 129.0))
-    doc.generate(midi_file="bob.mid",
-                 output_file="delete_me.pdf",
-                 song_title="Three little birds",
-                 song_author="Bob Marley")
 
 
 def parse_args():
