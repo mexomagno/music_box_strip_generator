@@ -495,7 +495,7 @@ def parse_args():
     ap.add_argument("song_title", metavar="SONG_TITLE", type=_title_string, help="Title of the song")
     ap.add_argument("song_author", metavar="SONG_AUTHOR", type=_title_string, help="Author of the song")
 
-    ap.add_argument("--paper_size", "-s", help="(mm) Size of the paper where to print", nargs=2, default=[215.9, 279.4])
+    ap.add_argument("--paper_size", "-s", help="(mm) Size of the paper where to print", nargs=2, default=[215.9, 279.4], type=float)
     ap.add_argument("--pin_number", "-n", help="Number of notes the box can reproduce", type=_restricted_pin_number, default=15)
     ap.add_argument("--pinwidth", "-pw", help="(mm) Physical separation between note pins", type=_restricted_pin_width, default=2.0)
     ap.add_argument("--beatwidth", "-bw", help="(mm) Size of eighth notes. Affects song speed", type=_restricted_beat_width, default=4.0)
@@ -519,7 +519,7 @@ def main():
                                paper_size=parsed_args.paper_size)
 
     print("Will generate with settings:\n"
-          "\tPaper size: {paper_size}\n"
+          "\tPaper size: {paper_size} (Warning: p1102w suports [76.2-215.9]x[127-356]\n"
           "\tPin number: {pin_number}\n"
           "\tStrip padding: {strip_padding}\n"
           "\tStrip separation: {strip_separation}\n"
