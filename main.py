@@ -112,11 +112,11 @@ class MusicBoxPDFGenerator(FPDF):
 
         drawn_beats = 0
         while len(parsed_notes) > 0:
-            print("> Created new strip")
+            # print("> Created new strip")
             new_strip = strip_generator.new_strip(drawn_beats)
             current_y += strip_generator.get_height() + STRIP_SEPARATION
             if current_y + strip_generator.get_height() / 2 > self.h - self.b_margin:
-                print("> Had to add page")
+                # print("> Had to add page")
                 self.add_page()
                 current_y = strip_generator.get_height() / 2 + self.t_margin
             parsed_notes, total_strip_beats = new_strip.draw(pdf=self,
@@ -125,11 +125,10 @@ class MusicBoxPDFGenerator(FPDF):
                                                              y=current_y,
                                                              notes=parsed_notes)
             drawn_beats += total_strip_beats
-            print("> Drew a strip")
+            # print("> Drew a strip")
 
         self.generated = True
         self.output(output_file, "F")
-        print("Done, Saved as {}".format(output_file))
 
 
 class StripGenerator:
@@ -150,7 +149,7 @@ class StripGenerator:
         note_offset = self.note_symbols.index(start_note)
         # rotate note symbols according to start note position in them
         self.note_symbols = self.note_symbols[note_offset:] + self.note_symbols[:note_offset]
-        print("Created strip generator. Notes: {}".format(', '.join(self.note_symbols)))
+        # print("Created strip generator. Notes: {}".format(', '.join(self.note_symbols)))
         self.has_header = False
 
     def new_strip(self, first_beat_position):
@@ -350,8 +349,10 @@ class Strip:
         max_pitch = _MidiParser.note_to_pitch(self.note_symbols[self.note_symbols.index(self.settings["start_note"])
                                                                 + N_NOTES % len(self.note_symbols) - 1],
                                               self.settings["start_octave"] + int(N_NOTES/len(self.note_symbols)))
-        print("This strip: Beats: {} - {}, Note range: {} - {}. Notes left: {}"
-              .format(min_beat, max_beat, _MidiParser.pitch_to_note(min_pitch), _MidiParser.pitch_to_note(max_pitch), len(notes)))
+
+        # print("This strip: Beats: {} - {}, Note range: {} - {}. Notes left: {}"
+        #       .format(min_beat, max_beat, _MidiParser.pitch_to_note(min_pitch), _MidiParser.pitch_to_note(max_pitch), len(notes)))
+        print("> Notes left: {}".format(len(notes)))
 
         def debug_circle(x, y):
             last_color = pdf.fill_color
@@ -385,7 +386,7 @@ class Strip:
             n_octave = note["octave"]
             n_pitch = note["raw_pitch"]
             if n_beat > max_beat:
-                print("Reached out of strip note: {}:{}{}".format(n_beat, n_note, n_octave))
+                # print("Reached out of strip note: {}:{}{}".format(n_beat, n_note, n_octave))
                 notes = [note] + notes
                 break
             if n_note not in self.note_symbols:
@@ -509,13 +510,21 @@ def main():
                   pin_size=parsed_args.pinwidth))
 
     print("Starting document generation...")
-    pdf_name = "{}.pdf".format(os.path.splitext(os.path.basename(parsed_args.midi_file))[0])
+    # Create unique pdf name located where midi file is
+    midi_folder = os.path.dirname(parsed_args.midi_file)
+    pdf_name_core = "{}".format(os.path.splitext(os.path.basename(parsed_args.midi_file))[0])
+    pdf_name = "{}.pdf".format(pdf_name_core)
+    n = 0
+    while os.path.exists(os.path.join(midi_folder, "{}".format(pdf_name))):
+        n += 1
+        pdf_name = "{}_{}.pdf".format(pdf_name_core, n)
+    # generate
     doc.generate(midi_file=parsed_args.midi_file,
-                 output_file=pdf_name,
+                 output_file=os.path.join(midi_folder, pdf_name),
                  song_title=parsed_args.song_title,
                  song_author=parsed_args.song_author)
 
-    print("Done. Generated as '{}'".format(pdf_name))
+    print("Done. Generated as '{}'".format(os.path.join(midi_folder, pdf_name)))
 
 if __name__ == "__main__":
     main()
