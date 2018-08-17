@@ -76,8 +76,7 @@ class MusicBoxPDFGenerator(FPDF):
     """
     def __init__(self, n_notes, pin_width, strip_margin, strip_separation=0, tuning="C", start_note="C", start_octave=5, beat_width=8, paper_size=(279.4, 215.9)):
         super().__init__("p", "mm", paper_size)
-        self.set_title("Testing this shit")
-        self.set_author("Maximiliano Castro")
+        self.set_author("Mexomagno")
         self.set_auto_page_break(True)
         self.set_margins(8, 6, 8)
         self.alias_nb_pages()
@@ -99,6 +98,7 @@ class MusicBoxPDFGenerator(FPDF):
         if self.generated:
             raise RuntimeError("Document was already generated!")
 
+        self.set_title("{} - {} ({}x{})".format(song_title, song_author, self.w, self.h))
         # Parse midi file
         parsed_notes = _MidiParser.render_to_box(midi.read_midifile(midi_file))
 
