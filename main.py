@@ -216,7 +216,7 @@ class Strip:
             #draw G clef
             PIN_WIDTH = self.settings["pin_width"]
             G_CLEF_H =  PIN_WIDTH * 15
-            pdf.image("g_clef.png", x=x_start,
+            pdf.image("res/g_clef.png", x=x_start,
                       y=g_clef_y - G_CLEF_H / 1.8,
                       h=G_CLEF_H)
             x_start += 2*BEAT_WIDTH
@@ -236,7 +236,7 @@ class Strip:
         # draw triangle
         TRIANGLE_SIZE = (8, 8)
         TRIANGLE_MARGIN_T = 4
-        pdf.image(name="triangle_tiny.png",
+        pdf.image(name="res/triangle_tiny.png",
                   x=x0-TRIANGLE_SIZE[0]/2,
                   y=current_y + TRIANGLE_MARGIN_T,
                   w=TRIANGLE_SIZE[0],
