@@ -21,7 +21,7 @@ This project uses MIDI files as the source of musical notes, allowing you to pre
 
 ## Usage
 
-```shell
+```txt
 $ python main.py [-h] [--paper_size PAPER_SIZE PAPER_SIZE]
                [--pin_number PIN_NUMBER] [--pinwidth PINWIDTH]
                [--beatwidth BEATWIDTH] [--strip_padding STRIP_PADDING]
@@ -91,7 +91,7 @@ This produces the same output as before, inside the same folder
 ## Known Issues
 
 * The logic to draw the G clef is weird, impractical and buggy for big boxes
-* 
+* Untested with more complex MIDI files. Will probably fail
 
 ## License
 
