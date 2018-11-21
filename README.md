@@ -54,11 +54,19 @@ optional arguments:
 
 ## Examples
 
+### Simple usage
+
 ```shell
-$ python main.py "examples/Let it Go - Frozen/Let it go.mid" 
+$ python main.py "examples/Let it Go - Frozen/Let it go.mid"  "Let It Go" "Elsa - Frozen"
 ```
 [Result](examples/Let%20it%20Go%20-%20Frozen/output.pdf)
 
+### More specific settings
+
+```shell
+$ python main.py "examples/Let it Go - Frozen/Let it go.mid" "Let It Go" "Elsa - Frozen" "examples/Let it Go - Frozen" --paper_size 215.9 279.4 --pin_number 15 --pinwidth 2 --beatwidth 4 --strip_padding 6.6 --strip_separation 0
+```
+This produces the same output as before, inside the same folder
 
 ## Features
 
