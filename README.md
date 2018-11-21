@@ -57,7 +57,7 @@ optional arguments:
 ```shell
 $ python main.py "examples/Let it Go - Frozen/Let it go.mid" 
 ```
-[Result](examples/Let it Go - Frozen/output.pdf)
+[Result](examples/Let%20it%20Go%20-%20Frozen/output.pdf)
 
 
 ## Features
