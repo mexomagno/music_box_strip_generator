@@ -59,7 +59,9 @@ optional arguments:
 ```shell
 $ python main.py "examples/Let it Go - Frozen/Let it go.mid"  "Let It Go" "Elsa - Frozen"
 ```
-[Result](examples/Let%20it%20Go%20-%20Frozen/output.pdf)
+
+* [Resulting PDF file](examples/Let%20it%20Go%20-%20Frozen/output.pdf)
+* [How it sounds after assembly](https://www.youtube.com/watch?v=kElY6uADtgU) (so sorry about the metal squeaks. Yikes!)
 
 ### More specific settings
 
