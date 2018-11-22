@@ -1,0 +1,36 @@
+############################
+## Music box formats file ##
+##                        ##
+## All units are in mm    ##
+############################
+version: 0.1
+
+music_boxes:
+# 15 notes
+- meta:
+    manufacturer: "Kikkerland"
+    description: "15 notes kikkerland music box"
+  dimensions:
+    pin_number: 15
+    pin_width: 2.0
+    start_margin: 6.6
+    end_margin: 6.6
+  music_props:
+    chromatic: false
+    tuning: "A#"
+    draw_tonic_as_c: true
+    clef: "G"
+# 30 notes
+- meta:
+    manufacturer: "Kikkerland"
+    description: "30 notes chromatic kikkerland music box"
+  dimensions:
+    pin_number: 30
+    pin_width: 2.0
+    start_margin: 6.6
+    end_margin: 6.6
+  music_props:
+    chromatic: true
+    starting_note: "A#"
+    draw_tonic_as_c: false
+    clef: "G"
