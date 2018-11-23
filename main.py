@@ -5,6 +5,7 @@ Contains all the logic to generate the paper strips
 """
 import os
 import argparse
+import yaml
 from fpdf import FPDF
 import midi
 
@@ -32,11 +33,11 @@ class _MidiParser:
 
     @staticmethod
     def pitch_to_note(midi_pitch_code):
-        return "C C# D D# E F F# G G# A A# B".split(" ")[midi_pitch_code % 12], -1 + int(midi_pitch_code/12)
+        return "C C# D D# E F F# G G# A A# B".split(" ")[midi_pitch_code % 12], -1 + int(midi_pitch_code / 12)
 
     @staticmethod
     def note_to_pitch(note, octave):
-        return 12 * (octave+1) + "C C# D D# E F F# G G# A A# B".split(" ").index(note)
+        return 12 * (octave + 1) + "C C# D D# E F F# G G# A A# B".split(" ").index(note)
 
     @staticmethod
     def render_to_box(midi_object):
@@ -62,11 +63,71 @@ class _MidiParser:
                     rendered.append({
                         "note": note,
                         "octave": octave,
-                        "beat": event.tick/resolution * 2,
+                        "beat": event.tick / resolution * 2,
                         "raw_pitch": event.get_pitch()
                     })
-        rendered = sorted(rendered, key=lambda k:k["beat"])
+        rendered = sorted(rendered, key=lambda k: k["beat"])
         return rendered
+
+
+class MusicBox:
+    MAJOR_SCALE_INTERVALS = [2, 2, 1, 2, 2, 2, 1]
+    NOTE_LABELS = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+    DEGREE_OFFSETS = {"I": 0, "II": 1, "III": 2, "IV": 3, "V": 4, "VI": 5, "VII": 6}
+
+    def __init__(self, box_dict):
+        # TODO: Validate contents
+        self.manufacturer = box_dict["meta"]["manufacturer"]
+        self.description = box_dict["meta"]["description"]
+        self.notes_count = box_dict["dimensions"]["notes_count"]
+        self.pin_width = box_dict["dimensions"]["pin_width"]
+        self.start_margin = box_dict["dimensions"]["start_margin"]
+        self.end_margin = box_dict["dimensions"]["end_margin"]
+        self.hole_radius = box_dict["dimensions"]["hole_radius"]
+        self.beat_width = box_dict["dimensions"]["beat_width"]
+        self.is_chromatic = box_dict["music_props"]["chromatic"]
+        self.tuning = box_dict["music_props"]["tuning"]
+        if not self.is_chromatic:
+            if box_dict["music_props"]["starting_degree"] is None:
+                self.start_offset = self.DEGREE_OFFSETS["I"]
+            else:
+                self.start_offset = self.DEGREE_OFFSETS[box_dict["music_props"]["starting_degree"].strip().upper()]
+        else:
+            self.start_offset = 0
+        # self.starting_note = box_dict["music_props"]["starting_note"]
+        self.draw_tonic_as_c = box_dict["music_props"]["draw_tonic_as_c"]  # TODO: Support option
+        self.clef = box_dict["music_props"]["clef"]
+        # Create scale array
+        self.notes = list()
+        note_index = (self.NOTE_LABELS.index(self.tuning) + self.start_offset) % len(self.NOTE_LABELS)
+        scale_index = len(self.MAJOR_SCALE_INTERVALS) - 1
+        for i in range(self.notes_count):
+            # add current note index
+            self.notes.append(self.NOTE_LABELS[note_index])
+            if self.is_chromatic:
+                note_index = (note_index + 1) % len(self.NOTE_LABELS)
+            else:
+                scale_index = (scale_index + 1) % len(self.MAJOR_SCALE_INTERVALS)
+                note_index = (note_index + self.MAJOR_SCALE_INTERVALS[scale_index]) % len(self.NOTE_LABELS)
+        # TODO: Remove self variables only used on Init, consider later midi parsing
+
+    def __str__(self):
+        return "{cls} instance\n" \
+               "- Description: {description}\n" \
+               "- Manufacturer: {manufacturer}\n" \
+               "- Notes count: {notes_count}\n" \
+               "- Pin width: {pin_width}\n" \
+               "- Is chromatic?: {is_chromatic}\n" \
+               "- Scale: {scale}\n" \
+               "- First note offset: {offset}" \
+            .format(cls=self.__class__.__name__,
+                    description=self.description,
+                    manufacturer=self.manufacturer,
+                    notes_count=self.notes_count,
+                    pin_width=self.pin_width,
+                    is_chromatic=self.is_chromatic,
+                    scale=self.notes,
+                    offset=self.start_offset)
 
 
 class MusicBoxPDFGenerator(FPDF):
@@ -74,7 +135,9 @@ class MusicBoxPDFGenerator(FPDF):
     Represents a music box document.
     All units in mm except for fonts, which are in points.
     """
-    def __init__(self, n_notes, pin_width, strip_margin, strip_separation=0, tuning="C", start_note="C", start_octave=5, beat_width=8, paper_size=(279.4, 215.9)):
+
+    def __init__(self, n_notes, pin_width, strip_margins, strip_separation=0, tuning="C", start_note="C", start_octave=5,
+                 beat_width=8, paper_size=(279.4, 215.9)):
         super().__init__("p", "mm", paper_size)
         self.set_author("Mexomagno")
         self.set_auto_page_break(True)
@@ -85,7 +148,7 @@ class MusicBoxPDFGenerator(FPDF):
         self.settings = {
             "n_notes": n_notes,
             "pin_width": pin_width,
-            "strip_margin": strip_margin,
+            "strip_margins": strip_margins,
             "beat_width": beat_width,
             "tuning": tuning,
             "start_note": start_note,
@@ -168,8 +231,8 @@ class StripGenerator:
     def get_height(self):
         PIN_WIDTH = self.settings["pin_width"]
         N_NOTES = self.settings["n_notes"]
-        STRIP_MARGIN = self.settings["strip_margin"]
-        return PIN_WIDTH*(N_NOTES-1) + 2*STRIP_MARGIN
+        STRIP_MARGINS = self.settings["strip_margins"]
+        return PIN_WIDTH * (N_NOTES - 1) + sum(STRIP_MARGINS)
 
 
 class Strip:
@@ -212,13 +275,13 @@ class Strip:
         g_clef_y = self._draw_body(pdf, x_start, x1, y)
 
         if self.is_first and g_clef_y:
-            #draw G clef
+            # draw G clef
             PIN_WIDTH = self.settings["pin_width"]
-            G_CLEF_H =  PIN_WIDTH * 15
+            G_CLEF_H = PIN_WIDTH * 15
             pdf.image("res/g_clef.png", x=x_start,
                       y=g_clef_y - G_CLEF_H / 1.8,
                       h=G_CLEF_H)
-            x_start += 2*BEAT_WIDTH
+            x_start += 2 * BEAT_WIDTH
 
         notes_left = self._draw_notes(pdf, x_start, x1, y, notes)
 
@@ -226,7 +289,7 @@ class Strip:
         return notes_left, total_strip_beats
 
     def _draw_header(self, pdf, x0, y):
-        #def show_pointer(s="O"):
+        # def show_pointer(s="O"):
         # rotate reference
 
         pdf.rotate(90, x0, y)
@@ -236,35 +299,35 @@ class Strip:
         TRIANGLE_SIZE = (8, 8)
         TRIANGLE_MARGIN_T = 4
         pdf.image(name="res/triangle_tiny.png",
-                  x=x0-TRIANGLE_SIZE[0]/2,
+                  x=x0 - TRIANGLE_SIZE[0] / 2,
                   y=current_y + TRIANGLE_MARGIN_T,
                   w=TRIANGLE_SIZE[0],
                   h=TRIANGLE_SIZE[1])
         current_y += TRIANGLE_MARGIN_T  # Relative to rotated perspective
         # Write song info:
-        STRIP_MARGIN = self.settings["strip_margin"]
+        STRIP_MARGINS = self.settings["strip_margins"]
         PIN_WIDTH = self.settings["pin_width"]
         N_NOTES = self.settings["n_notes"]
-        MAX_TITLE_WIDTH = PIN_WIDTH * N_NOTES + 2 * STRIP_MARGIN - 4
+        MAX_TITLE_WIDTH = PIN_WIDTH * N_NOTES + sum(STRIP_MARGINS) - 4
         pdf.set_font("courier", "B", 30)
 
         while max(pdf.get_string_width(self.song_title), pdf.get_string_width(self.song_author)) > MAX_TITLE_WIDTH:
             pdf.set_font_size(pdf.font_size_pt - 0.1)
-        pdf.text(x=x0-pdf.get_string_width(self.song_title)/2,
+        pdf.text(x=x0 - pdf.get_string_width(self.song_title) / 2,
                  y=current_y + TRIANGLE_SIZE[1] + pdf.font_size + 5,
                  txt=self.song_title)
         current_y += TRIANGLE_SIZE[1] + pdf.font_size + 5
-        pdf.text(x=x0-pdf.get_string_width(self.song_author)/2,
+        pdf.text(x=x0 - pdf.get_string_width(self.song_author) / 2,
                  y=current_y + pdf.font_size + 3,
                  txt=self.song_author)
         current_y += pdf.font_size + 10
 
         # draw notes
-        x0_first_note = x0 - N_NOTES * PIN_WIDTH/2
+        x0_first_note = x0 - N_NOTES * PIN_WIDTH / 2
         pdf.set_font("Arial", "B", 8)
         for n in range(N_NOTES):
             symbol = self.note_symbols[n % len(self.note_symbols)]
-            pdf.text(x0_first_note + n*PIN_WIDTH,
+            pdf.text(x0_first_note + n * PIN_WIDTH,
                      current_y + pdf.font_size,
                      symbol)
         current_y += pdf.font_size + 1
@@ -274,7 +337,7 @@ class Strip:
         x0_adjusted = x0 + (current_y - y)
 
         # Draw strip limits
-        STRIP_WIDTH = PIN_WIDTH*(N_NOTES-1) + 2*STRIP_MARGIN
+        STRIP_WIDTH = PIN_WIDTH * (N_NOTES - 1) + sum(STRIP_MARGINS)
         x0_strip_angle = x0 + TRIANGLE_SIZE[1] + 5
 
         # Draw strip borders
@@ -298,37 +361,40 @@ class Strip:
         clef_offset = len(self.note_symbols) - (N_NOTES % len(self.note_symbols))
         for h_line in range(N_NOTES):
             if do_g_clef and len(G_CLEF_NOTES) != 0 \
-                    and G_CLEF_NOTES[-1] == list(reversed(self.note_symbols))[(h_line + clef_offset)% len(self.note_symbols)]:
+                    and G_CLEF_NOTES[-1] == list(reversed(self.note_symbols))[
+                (h_line + clef_offset) % len(self.note_symbols)]:
                 current_line_width = pdf.line_width
                 pdf.set_line_width(1)
-                pdf.line(x0 + pdf.line_width/2, y - STRIP_WIDTH / 2 + PIN_WIDTH * h_line + PIN_WIDTH / 2,
-                         x0 + (x1-x0) - ((x1-x0) % BEAT_WIDTH) - pdf.line_width/2, y - STRIP_WIDTH / 2 + PIN_WIDTH * h_line + PIN_WIDTH / 2)
+                pdf.line(x0 + pdf.line_width / 2, y - STRIP_WIDTH / 2 + PIN_WIDTH * h_line + PIN_WIDTH / 2,
+                         x0 + (x1 - x0) - ((x1 - x0) % BEAT_WIDTH) - pdf.line_width / 2,
+                         y - STRIP_WIDTH / 2 + PIN_WIDTH * h_line + PIN_WIDTH / 2)
                 pdf.set_line_width(current_line_width)
                 if G_CLEF_NOTES[-1] == "G":
                     # store g clef position for later
                     G_CLEF_Y = y - STRIP_WIDTH / 2 + PIN_WIDTH * h_line + PIN_WIDTH / 2
                 G_CLEF_NOTES = G_CLEF_NOTES[:-1]
             else:
-                pdf.line(x0, y - STRIP_WIDTH/2 + PIN_WIDTH*h_line + PIN_WIDTH/2,
-                         x0 + (x1 - x0) - ((x1 - x0) % BEAT_WIDTH), y - STRIP_WIDTH/2 + PIN_WIDTH*h_line + PIN_WIDTH/2)
+                pdf.line(x0, y - STRIP_WIDTH / 2 + PIN_WIDTH * h_line + PIN_WIDTH / 2,
+                         x0 + (x1 - x0) - ((x1 - x0) % BEAT_WIDTH),
+                         y - STRIP_WIDTH / 2 + PIN_WIDTH * h_line + PIN_WIDTH / 2)
 
         # Draw vertical lines
-        for v_line in range(int((x1-x0)/BEAT_WIDTH) + 1):
-            line_x = x0 + v_line*BEAT_WIDTH
-            y_half = STRIP_WIDTH/2 - PIN_WIDTH/2
+        for v_line in range(int((x1 - x0) / BEAT_WIDTH) + 1):
+            line_x = x0 + v_line * BEAT_WIDTH
+            y_half = STRIP_WIDTH / 2 - PIN_WIDTH / 2
             if v_line % 2 == 0:
                 pdf.line(line_x, y - y_half, line_x, y + y_half)
             else:
                 pdf.dashed_line(line_x, y - y_half, line_x, y + y_half,
-                                dash_length=1.6*PIN_WIDTH,
-                                space_length=1.1*PIN_WIDTH)
+                                dash_length=1.6 * PIN_WIDTH,
+                                space_length=1.1 * PIN_WIDTH)
 
         # Draw strip limits
         pdf.set_draw_color(0, 0, 0)
-        STRIP_MARGIN = self.settings["strip_margin"]
-        STRIP_WIDTH = PIN_WIDTH * (N_NOTES-1) + 2 * STRIP_MARGIN
-        pdf.line(x0, y - STRIP_WIDTH/2, x1, y - STRIP_WIDTH/2)
-        pdf.line(x0, y + STRIP_WIDTH/2, x1, y + STRIP_WIDTH/2)
+        STRIP_MARGINS = self.settings["strip_margins"]
+        STRIP_WIDTH = PIN_WIDTH * (N_NOTES - 1) + sum(STRIP_MARGINS)
+        pdf.line(x0, y - STRIP_WIDTH / 2, x1, y - STRIP_WIDTH / 2)
+        pdf.line(x0, y + STRIP_WIDTH / 2, x1, y + STRIP_WIDTH / 2)
 
         return G_CLEF_Y
 
@@ -336,7 +402,7 @@ class Strip:
         N_NOTES = self.settings["n_notes"]
         BEAT_WIDTH = self.settings["beat_width"]
         PIN_WIDTH = self.settings["pin_width"]
-        STRIP_WIDTH = (N_NOTES-1) * PIN_WIDTH
+        STRIP_WIDTH = (N_NOTES - 1) * PIN_WIDTH
         pdf.set_draw_color(0, 0, 0)
 
         NOTE_RADIUS = 1.5
@@ -348,7 +414,7 @@ class Strip:
         min_pitch = _MidiParser.note_to_pitch(self.settings["start_note"], self.settings["start_octave"])
         max_pitch = _MidiParser.note_to_pitch(self.note_symbols[self.note_symbols.index(self.settings["start_note"])
                                                                 + N_NOTES % len(self.note_symbols) - 1],
-                                              self.settings["start_octave"] + int(N_NOTES/len(self.note_symbols)))
+                                              self.settings["start_octave"] + int(N_NOTES / len(self.note_symbols)))
 
         # print("This strip: Beats: {} - {}, Note range: {} - {}. Notes left: {}"
         #       .format(min_beat, max_beat, _MidiParser.pitch_to_note(min_pitch), _MidiParser.pitch_to_note(max_pitch), len(notes)))
@@ -358,26 +424,27 @@ class Strip:
             last_color = pdf.fill_color
             pdf.set_fill_color(0, 0, 255)
             RADIUS = 2
-            pdf.ellipse(x-RADIUS/2, y-RADIUS/2, RADIUS, RADIUS, "B")
+            pdf.ellipse(x - RADIUS / 2, y - RADIUS / 2, RADIUS, RADIUS, "B")
             pdf.fill_color = last_color
 
         def beat_to_x(beat):
-            return x0 + (beat - min_beat)*BEAT_WIDTH - NOTE_RADIUS/2
+            return x0 + (beat - min_beat) * BEAT_WIDTH - NOTE_RADIUS / 2
 
         def note_to_y(note, octave):
-            note_y0 = y + STRIP_WIDTH/2
+            note_y0 = y + STRIP_WIDTH / 2
             START_OCTAVE = self.settings["start_octave"]
-            note_position = self.note_symbols.index(note) + (octave - START_OCTAVE)*len(self.note_symbols)
-            return note_y0 - (note_position*PIN_WIDTH) - NOTE_RADIUS/2
+            note_position = self.note_symbols.index(note) + (octave - START_OCTAVE) * len(self.note_symbols)
+            return note_y0 - (note_position * PIN_WIDTH) - NOTE_RADIUS / 2
 
         # Remove trailing beats before (error caused?)
         while notes and notes[0]["beat"] < min_beat:
-            print("deleted note because it had time {}, which is outside {} - {}".format(notes[0]["beat"], min_beat, max_beat))
+            print("deleted note because it had time {}, which is outside {} - {}".format(notes[0]["beat"], min_beat,
+                                                                                         max_beat))
             notes.pop(0)
         # Draw notes inside strip
         pdf.set_fill_color(0, 0, 0)
         last_line_width = pdf.line_width
-        pdf.set_line_width(NOTE_RADIUS*0.6)
+        pdf.set_line_width(NOTE_RADIUS * 0.6)
         while len(notes) > 0:
             note = notes.pop(0)
             # pprint.pprint(note)
@@ -405,6 +472,52 @@ class Strip:
 
 
 def parse_args():
+
+    def _midi_file(s):
+        # check if exists
+        if not os.path.exists(s):
+            raise argparse.ArgumentTypeError("File '{}' doesn't exist".format(s))
+        _, ext = os.path.splitext(s)
+        if ext.lower() != ".mid":
+            raise argparse.ArgumentTypeError("Unsupported extension: '{}'. Use a midi file only".format(s))
+        # Check if valid midi file
+        try:
+            midi.read_midifile(s)
+        except Exception as e:
+            raise argparse.ArgumentTypeError("Could not process midi file! '{}'".format(e))
+        return s
+
+    def _title_string(s):
+        min_l = 1
+        max_l = 50
+        if not min_l <= len(s) <= max_l:
+            raise argparse.ArgumentTypeError("Length of '{}' is out of range '[{}, {}]".format(len(s), min_l, max_l))
+        return s
+
+    def _real_dir(s):
+        if not os.path.exists(s):
+            raise argparse.ArgumentTypeError("Directory '{}' doesn't exist".format(s))
+        return s
+
+    ap = argparse.ArgumentParser(description="MIDI Music paper strips generator for Kikkerland's music box")
+    ap.add_argument("midi_file", metavar="MIDI_FILE", type=_midi_file, help="MIDI file to parse")
+    ap.add_argument("song_title", metavar="SONG_TITLE", type=_title_string, help="Title of the song")
+    ap.add_argument("song_author", metavar="SONG_AUTHOR", type=_title_string, help="Author of the song")
+    ap.add_argument("output_dir", metavar="OUTPUT_DIR", type=_real_dir, help="Directory where to put the output",
+                    nargs="?")
+
+    ap.add_argument("--paper_size", "-s", help="(mm) Size of the paper where to print", nargs=2, default=[215.9, 279.4],
+                    type=float)
+    ap.add_argument("--music_box", "-b", help="Which box from the music boxes definition to use", type=int, default=1)
+    args = ap.parse_args()
+    if not args.output_dir:
+        args.output_dir = os.path.dirname(args.midi_file)
+    return args
+
+
+
+
+def parse_args_old():
     # Define custom arg types
     def _restricted_pin_number(x):
         x = int(x)
@@ -476,48 +589,75 @@ def parse_args():
     ap.add_argument("midi_file", metavar="MIDI_FILE", type=_midi_file, help="MIDI file to parse")
     ap.add_argument("song_title", metavar="SONG_TITLE", type=_title_string, help="Title of the song")
     ap.add_argument("song_author", metavar="SONG_AUTHOR", type=_title_string, help="Author of the song")
-    ap.add_argument("output_dir", metavar="OUTPUT_DIR", type=_real_dir, help="Directory where to put the output", nargs="?")
+    ap.add_argument("output_dir", metavar="OUTPUT_DIR", type=_real_dir, help="Directory where to put the output",
+                    nargs="?")
 
-    ap.add_argument("--paper_size", "-s", help="(mm) Size of the paper where to print", nargs=2, default=[215.9, 279.4], type=float)
-    ap.add_argument("--pin_number", "-n", help="Number of notes the box can reproduce", type=_restricted_pin_number, default=15)
-    ap.add_argument("--pinwidth", "-pw", help="(mm) Physical separation between note pins", type=_restricted_pin_width, default=2.0)
-    ap.add_argument("--beatwidth", "-bw", help="(mm) Size of eighth notes. Affects song speed", type=_restricted_beat_width, default=4.0)
-    ap.add_argument("--strip_padding", "-sm", help="(mm) Additional strip width", type=_restricted_strip_padding, default=6.6)
-    ap.add_argument("--strip_separation", "-ss", help="(mm) Separation between strips", type=_restricted_strip_separation, default=0)
+    ap.add_argument("--paper_size", "-s", help="(mm) Size of the paper where to print", nargs=2, default=[215.9, 279.4],
+                    type=float)
+    # ap.add_argument("--pin_number", "-n", help="Number of notes the box can reproduce", type=_restricted_pin_number, default=15)
+    # ap.add_argument("--pinwidth", "-pw", help="(mm) Physical separation between note pins", type=_restricted_pin_width, default=2.0)
+    ap.add_argument("--beatwidth", "-bw", help="(mm) Size of eighth notes. Affects song speed",
+                    type=_restricted_beat_width, default=4.0)
+    ap.add_argument("--strip_padding", "-sm", help="(mm) Additional strip width", type=_restricted_strip_padding,
+                    default=6.6)
+    ap.add_argument("--strip_separation", "-ss", help="(mm) Separation between strips",
+                    type=_restricted_strip_separation, default=0)
     args = ap.parse_args()
     if not args.output_dir:
         args.output_dir = os.path.dirname(args.midi_file)
     return args
 
 
+def load_music_boxes():
+    settings_file = "musicboxes.yaml"
+    if not os.path.isfile(settings_file) or not settings_file.strip().lower().endswith(".yaml"):
+        raise IOError("No valid configurations file could be found!!")
+
+    # Try to parse file settings
+    settings_dict = yaml.load(open(settings_file))
+    print("Loaded '{}'".format(settings_file))
+    settings_version = settings_dict["version"]
+    print("Settings file version: {version}\n"
+          "Music boxes configured: {n_boxes}"
+          .format(version=settings_version,
+                  n_boxes=len(settings_dict["music_boxes"])))
+
+    # Construct boxes from settings
+    loaded_boxes = list()
+    for box_definition in settings_dict["music_boxes"]:
+        loaded_boxes.append(MusicBox(box_definition))
+    print("Boxes loaded")
+    return loaded_boxes
+
 def main():
     # Get and parse args
     parsed_args = parse_args()
+    # Check if selected box exists
+    boxes = load_music_boxes()
+
+    selected_box_index = parsed_args.music_box - 1
+    if selected_box_index not in range(len(boxes)):
+        raise argparse.ArgumentError("The selected music box index '{mb_index}' doesn't exist."
+                                     "Check the defined music boxes in the definitions file")
+    selected_box = boxes[selected_box_index]
+    print("Will use the following music box: ")
+    print(selected_box)
+
     # Generate instance
-    doc = MusicBoxPDFGenerator(n_notes=parsed_args.pin_number,
-                               pin_width=parsed_args.pinwidth,
-                               strip_margin=parsed_args.strip_padding,
-                               strip_separation=parsed_args.strip_separation,
-                               beat_width=parsed_args.beatwidth,
+    doc = MusicBoxPDFGenerator(n_notes=selected_box.notes_count,
+                               pin_width=selected_box.pin_width,
+                               strip_margins=(selected_box.start_margin, selected_box.end_margin),
+                               strip_separation=0,
+                               beat_width=selected_box.beat_width,
                                tuning="C",
                                start_note="C",
                                start_octave=4,
                                paper_size=parsed_args.paper_size)
 
     print("Will generate with settings:\n"
-          "\tPaper size: {paper_size} (Warning: p1102w suports [76.2-215.9]x[127-356]\n"
-          "\tPin number: {pin_number}\n"
-          "\tStrip padding: {strip_padding}\n"
-          "\tStrip separation: {strip_separation}\n"
-          "\tBeat width: {beat_width}\n"
-          "\tPin size: {pin_size}\n"
+          "\tPaper size: {paper_size} (Warning: HP p1102w printer supported dimensions are [76.2-215.9]x[127-356]\n"
           "\tOutput dir: {out_dir}\n"
           .format(paper_size=parsed_args.paper_size,
-                  pin_number=parsed_args.pin_number,
-                  strip_padding=parsed_args.strip_padding,
-                  strip_separation=parsed_args.strip_separation,
-                  beat_width=parsed_args.beatwidth,
-                  pin_size=parsed_args.pinwidth,
                   out_dir=parsed_args.output_dir))
 
     print("Starting document generation...")
@@ -536,6 +676,7 @@ def main():
                  song_author=parsed_args.song_author)
 
     print("Done. Generated as '{}'".format(os.path.join(parsed_args.output_dir, pdf_name)))
+
 
 if __name__ == "__main__":
     main()

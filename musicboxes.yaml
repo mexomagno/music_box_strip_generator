@@ -11,7 +11,7 @@ music_boxes:
     manufacturer: "Kikkerland"
     description: "15 notes kikkerland music box"
   dimensions:
-    pin_number: 15
+    notes_count: 15
     pin_width: 2.0
     start_margin: 6.6
     end_margin: 6.6
@@ -20,6 +20,7 @@ music_boxes:
   music_props:
     chromatic: false
     tuning: "A#"
+    starting_degree: "I"  # I to VII
     draw_tonic_as_c: true
     clef: "G"
 
@@ -28,7 +29,7 @@ music_boxes:
     manufacturer: "Kikkerland"
     description: "30 notes chromatic kikkerland music box"
   dimensions:
-    pin_number: 30
+    notes_count: 30
     pin_width: 2.0
     start_margin: 6.6
     end_margin: 6.6
@@ -36,6 +37,6 @@ music_boxes:
     beat_width: 4.0
   music_props:
     chromatic: true
-    starting_note: "A#"
+    tuning: "A#"  # If chromatic, tuning is considered as the first note
     draw_tonic_as_c: false
     clef: "G"
