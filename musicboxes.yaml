@@ -21,6 +21,7 @@ music_boxes:
     chromatic: false
     tuning: "A#"
     starting_degree: "I"  # I to VII
+    starting_octave: 5
     draw_tonic_as_c: true
     clef: "G"
 
@@ -38,5 +39,6 @@ music_boxes:
   music_props:
     chromatic: true
     tuning: "A#"  # If chromatic, tuning is considered as the first note
+    starting_octave: 5
     draw_tonic_as_c: false
     clef: "G"

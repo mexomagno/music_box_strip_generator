@@ -98,17 +98,23 @@ class MusicBox:
         self.draw_tonic_as_c = box_dict["music_props"]["draw_tonic_as_c"]  # TODO: Support option
         self.clef = box_dict["music_props"]["clef"]
         # Create scale array
-        self.notes = list()
+        self.notes = list()  # List of tuples
         note_index = (self.NOTE_LABELS.index(self.tuning) + self.start_offset) % len(self.NOTE_LABELS)
         scale_index = len(self.MAJOR_SCALE_INTERVALS) - 1
+        octave = box_dict["music_props"]["starting_octave"]
         for i in range(self.notes_count):
             # add current note index
-            self.notes.append(self.NOTE_LABELS[note_index])
+            self.notes.append((self.NOTE_LABELS[note_index], octave))
             if self.is_chromatic:
+                current_index = note_index
                 note_index = (note_index + 1) % len(self.NOTE_LABELS)
             else:
+                current_index = note_index
                 scale_index = (scale_index + 1) % len(self.MAJOR_SCALE_INTERVALS)
                 note_index = (note_index + self.MAJOR_SCALE_INTERVALS[scale_index]) % len(self.NOTE_LABELS)
+            # update octave
+            if note_index < current_index:
+                octave += 1
         # TODO: Remove self variables only used on Init, consider later midi parsing
 
     def __str__(self):
@@ -136,7 +142,7 @@ class MusicBoxPDFGenerator(FPDF):
     All units in mm except for fonts, which are in points.
     """
 
-    def __init__(self, n_notes, pin_width, strip_margins, strip_separation=0, tuning="C", start_note="C", start_octave=5,
+    def __init__(self, n_notes, pin_width, strip_margins, note_symbols, strip_separation=0, start_note="C", start_octave=5,
                  beat_width=8, paper_size=(279.4, 215.9)):
         super().__init__("p", "mm", paper_size)
         self.set_author("Mexomagno")
@@ -150,7 +156,7 @@ class MusicBoxPDFGenerator(FPDF):
             "pin_width": pin_width,
             "strip_margins": strip_margins,
             "beat_width": beat_width,
-            "tuning": tuning,
+            "note_symbols": note_symbols,
             "start_note": start_note,
             "start_octave": start_octave,
             "strip_separation": strip_separation
@@ -197,16 +203,17 @@ class MusicBoxPDFGenerator(FPDF):
 class StripGenerator:
     def __init__(self, settings, song_title=None, song_author=None):
         self.settings = settings
-        tuning = settings["tuning"]
+        # tuning = settings["tuning"]
         start_note = settings["start_note"]
         self.song_title = song_title
         self.song_author = song_author
-        if tuning == "C":
-            self.note_symbols = "C,D,E,F,G,A,B".split(",")
-        elif tuning == "X":
-            self.note_symbols = "C,C#,D,D#,E,F,F#,G,G#,A,A#,B".split(",")
-        else:
-            raise RuntimeError("Unsupported tuning '{}'".format(tuning))
+        # if tuning == "C":
+        #     self.note_symbols = "C,D,E,F,G,A,B".split(",")
+        # elif tuning == "X":
+        #     self.note_symbols = "C,C#,D,D#,E,F,F#,G,G#,A,A#,B".split(",")
+        # else:
+        #     raise RuntimeError("Unsupported tuning '{}'".format(tuning))
+        self.note_symbols = settings["note_symbols"]
         if start_note not in self.note_symbols:
             raise ValueError("Incorrect starting note '{}'".format(start_note))
         note_offset = self.note_symbols.index(start_note)
@@ -472,7 +479,6 @@ class Strip:
 
 
 def parse_args():
-
     def _midi_file(s):
         # check if exists
         if not os.path.exists(s):
@@ -649,7 +655,7 @@ def main():
                                strip_margins=(selected_box.start_margin, selected_box.end_margin),
                                strip_separation=0,
                                beat_width=selected_box.beat_width,
-                               tuning="C",
+                               note_symbols=selected_box.notes,
                                start_note="C",
                                start_octave=4,
                                paper_size=parsed_args.paper_size)
