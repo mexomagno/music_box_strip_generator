@@ -21,7 +21,7 @@ music_boxes:
     chromatic: false
     tuning: "A#"
     starting_degree: "I"  # I to VII
-    starting_octave: 5
+    starting_octave: 4
     draw_tonic_as_c: true
     clef: "G"
 
