@@ -19,7 +19,7 @@ music_boxes:
     beat_width: 4.0  # Separation between music beats
   music_props:
     chromatic: false
-    tuning: "A#"
+    tuning: "G#"  # Only sharps, no flats
     starting_degree: "I"  # I to VII
     starting_octave: 4
     draw_tonic_as_c: true

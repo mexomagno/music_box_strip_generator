@@ -8,7 +8,6 @@ import argparse
 import yaml
 from fpdf import FPDF
 import midi
-from pprint import pprint
 
 
 class _MidiParser:
@@ -139,6 +138,7 @@ class MusicBox:
     def get_margins(self):
         return [self.start_margin, self.end_margin]
 
+
 class MusicBoxPDFGenerator(FPDF):
     """
     Represents a music box document.
@@ -170,8 +170,8 @@ class MusicBoxPDFGenerator(FPDF):
 
         self.set_title("{} - {} ({}x{})".format(song_title, song_author, self.w, self.h))
         # Parse midi file
+        # Beware: Complex, giant midi files will be brought to memory all at once with this step!
         parsed_notes = _MidiParser.render_to_box(midi.read_midifile(midi_file))
-        pprint(parsed_notes)
 
         self.add_page()
         strip_generator = StripGenerator(music_box_object=self.music_box_object,
@@ -263,16 +263,17 @@ class Strip:
             x_start = self._draw_header(pdf, x_start, y)
 
         # Draw notes grid
-        g_clef_y = self._draw_body(pdf, x_start, x1, y)
+        # g_clef_y = self._draw_body(pdf, x_start, x1, y)
+        self._draw_body(pdf, x_start, x1, y)
 
-        if self.is_first and g_clef_y:
-            # draw G clef
-            PIN_WIDTH = self.music_box_object.pin_width
-            G_CLEF_H = PIN_WIDTH * 15
-            pdf.image("res/g_clef.png", x=x_start,
-                      y=g_clef_y - G_CLEF_H / 1.8,
-                      h=G_CLEF_H)
-            x_start += 2 * BEAT_WIDTH
+        # if self.is_first and g_clef_y:
+        #     # draw G clef
+        #     PIN_WIDTH = self.music_box_object.pin_width
+        #     G_CLEF_H = PIN_WIDTH * 15
+        #     pdf.image("res/g_clef.png", x=x_start,
+        #               y=g_clef_y - G_CLEF_H / 1.8,
+        #               h=G_CLEF_H)
+        #     x_start += 2 * BEAT_WIDTH
 
         notes_left = self._draw_notes(pdf, x_start, x1, y, notes)
 
@@ -347,8 +348,8 @@ class Strip:
         PIN_WIDTH = self.music_box_object.pin_width
         STRIP_WIDTH = N_NOTES * PIN_WIDTH
         BEAT_WIDTH = self.music_box_object.beat_width
-        G_CLEF_NOTES = "EGBDF"
-        G_CLEF_Y = None
+        # G_CLEF_NOTES = "EGBDF"
+        # G_CLEF_Y = None
         do_g_clef = False  #all([x in self.note_symbols for x in G_CLEF_NOTES])
         clef_offset = 0  #len(self.note_symbols) - (N_NOTES % len(self.note_symbols))
         for h_line in range(N_NOTES):
@@ -388,7 +389,7 @@ class Strip:
         pdf.line(x0, y - STRIP_WIDTH / 2, x1, y - STRIP_WIDTH / 2)
         pdf.line(x0, y + STRIP_WIDTH / 2, x1, y + STRIP_WIDTH / 2)
 
-        return G_CLEF_Y
+        # return G_CLEF_Y
 
     def _draw_notes(self, pdf, x0, x1, y, notes):
         N_NOTES = self.music_box_object.notes_count
@@ -423,7 +424,10 @@ class Strip:
             return x0 + (beat - min_beat) * BEAT_WIDTH - NOTE_RADIUS / 2
 
         def note_to_y(note, octave):
-            raise NotImplementedError("We are working on it!")
+            # raise NotImplementedError("We are working on it!")
+            note_y0 = y + STRIP_WIDTH / 2
+            note_position = self.music_box_object.notes.index((note, octave))
+            return note_y0 - (note_position * PIN_WIDTH) - NOTE_RADIUS / 2
             # note_y0 = y + STRIP_WIDTH / 2
             # START_OCTAVE = self.settings["start_octave"]
             # note_position = self.note_symbols.index(note) + (octave - START_OCTAVE) * len(self.note_symbols)
