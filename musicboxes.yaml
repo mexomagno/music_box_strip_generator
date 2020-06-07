@@ -3,42 +3,73 @@
 ##                        ##
 ## All units are in mm    ##
 ############################
-version: 0.1
+version: 0.2
 
-music_boxes:
-# 15 notes
-- meta:
-    manufacturer: "Kikkerland"
-    description: "15 notes kikkerland music box"
-  dimensions:
-    notes_count: 15
-    pin_width: 2.0
-    start_margin: 6.6
-    end_margin: 6.6
-    hole_radius: 2.0
-    beat_width: 4.0  # Separation between music beats
-  music_props:
-    chromatic: false
-    tuning: "G#"  # Only sharps, no flats
-    starting_degree: "I"  # I to VII
-    starting_octave: 4
-    draw_tonic_as_c: true
-    clef: "G"
+# music_boxes:
+# # 15 notes
+# - meta:
+#     manufacturer: "Kikkerland"
+#     description: "15 notes kikkerland music box"
+#   dimensions:
+#     notes_count: 15
+#     pin_width: 2.0
+#     start_margin: 6.6
+#     end_margin: 6.6
+#     hole_radius: 2.0
+#     beat_width: 4.0  # Separation between music beats
+#   music_props:
+#     # tuning: "G#"  # Only sharps, no flats
+#     # starting_degree: "I"  # I to VII
+#     # starting_octave: 4
+#     # draw_tonic_as_c: true
+#     notes: 
+#       - 
+#     clef: "G"
 
 # 30 notes
+boxes:
 - meta:
     manufacturer: "Kikkerland"
     description: "30 notes chromatic kikkerland music box"
   dimensions:
-    notes_count: 30
     pin_width: 2.0
     start_margin: 6.6
     end_margin: 6.6
     hole_radius: 2.0
     beat_width: 4.0
   music_props:
-    chromatic: true
-    tuning: "A#"  # If chromatic, tuning is considered as the first note
-    starting_octave: 5
-    draw_tonic_as_c: false
+    # tuning: "A#"  # If chromatic, tuning is considered as the first note
+    # starting_octave: 5
+    # draw_tonic_as_c: false
+    notes:  # from low to high 
+      - F3
+      - G3
+      - C4
+      - D4
+      - E4
+      - F4
+      - G4
+      - A4
+      - Bb4
+      - B4
+      - C5
+      - Db5
+      - D5
+      - Eb5
+      - E5
+      - F5
+      - F#5
+      - G5
+      - Ab5
+      - A5
+      - Bb5
+      - B5
+      - C6
+      - Db6
+      - D6
+      - Eb6
+      - E6
+      - F6
+      - G6
+      - A6
     clef: "G"
