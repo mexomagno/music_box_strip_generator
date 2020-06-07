@@ -299,14 +299,9 @@ class Strip:
             return x0 + (beat - min_beat) * BEAT_WIDTH - NOTE_RADIUS / 2
 
         def note_to_y(note, octave):
-            # raise NotImplementedError("We are working on it!")
             note_y0 = y + STRIP_WIDTH / 2
             note_position = self.music_box_object.notes.index((note, octave))
             return note_y0 - (note_position * PIN_WIDTH) - NOTE_RADIUS / 2
-            # note_y0 = y + STRIP_WIDTH / 2
-            # START_OCTAVE = self.settings["start_octave"]
-            # note_position = self.note_symbols.index(note) + (octave - START_OCTAVE) * len(self.note_symbols)
-            # return note_y0 - (note_position * PIN_WIDTH) - NOTE_RADIUS / 2
 
         # Remove trailing beats before (error caused?)
         while notes and notes[0]["beat"] < min_beat:

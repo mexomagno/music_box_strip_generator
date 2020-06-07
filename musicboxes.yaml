@@ -5,32 +5,40 @@
 ############################
 version: 0.2
 
-# music_boxes:
-# # 15 notes
-# - meta:
-#     manufacturer: "Kikkerland"
-#     description: "15 notes kikkerland music box"
-#   dimensions:
-#     notes_count: 15
-#     pin_width: 2.0
-#     start_margin: 6.6
-#     end_margin: 6.6
-#     hole_radius: 2.0
-#     beat_width: 4.0  # Separation between music beats
-#   music_props:
-#     # tuning: "G#"  # Only sharps, no flats
-#     # starting_degree: "I"  # I to VII
-#     # starting_octave: 4
-#     # draw_tonic_as_c: true
-#     notes: 
-#       - 
-#     clef: "G"
 
-# 30 notes
 boxes:
+# 15 notes
 - meta:
     manufacturer: "Kikkerland"
-    description: "30 notes chromatic kikkerland music box"
+    description: "15 notes music box"
+  dimensions:
+    pin_width: 2.0
+    start_margin: 6.6
+    end_margin: 6.6
+    hole_radius: 2.0
+    beat_width: 4.0  # Separation between music beats
+  music_props:
+    notes: 
+      - C4
+      - D4
+      - E4
+      - F4
+      - G4
+      - A4
+      - B4
+      - C5
+      - D5
+      - E5
+      - F5
+      - G5
+      - A5
+      - B5
+      - C6
+    clef: "G"
+# 30 notes
+- meta:
+    manufacturer: "Kikkerland"
+    description: "30 notes chromatic music box"
   dimensions:
     pin_width: 2.0
     start_margin: 6.6
@@ -38,9 +46,6 @@ boxes:
     hole_radius: 2.0
     beat_width: 4.0
   music_props:
-    # tuning: "A#"  # If chromatic, tuning is considered as the first note
-    # starting_octave: 5
-    # draw_tonic_as_c: false
     notes:  # from low to high 
       - F3
       - G3
