@@ -1,4 +1,5 @@
 """Defines a music box instance."""
+import re
 
 class MusicBox:
     # MAJOR_SCALE_INTERVALS = [2, 2, 1, 2, 2, 2, 1]
@@ -13,9 +14,8 @@ class MusicBox:
         for (key, value) in kwargs['dimensions'].items(): 
             setattr(self, key, value)
 
-        # load notes
-        self.notes = kwargs['music_props']['notes']
-
+        # load notes as (note, octave) tuples
+        self.notes = [(re.sub('\d', '', note), int(re.sub('[^\d]', '', note))) for note in kwargs['music_props']['notes']]
         # if not self.is_chromatic:
         # if box_dict["music_props"]["starting_degree"] is None:
         # self.start_offset = self.DEGREE_OFFSETS["I"]
@@ -55,8 +55,7 @@ class MusicBox:
                     description=self.description,
                     manufacturer=self.manufacturer,
                     notes_count=self.notes_count,
-                    pin_width=self.pin_width,
-                    scale=self.notes)
+                    pin_width=self.pin_width)
 
     def get_margins(self):
         return [self.start_margin, self.end_margin]
