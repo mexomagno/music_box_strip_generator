@@ -177,15 +177,8 @@ class Strip:
                  txt=self.song_author)
         current_y += pdf.font_size + 10
 
-        # draw notes
-        x0_first_note = x0 - N_NOTES * PIN_WIDTH / 2
-        pdf.set_font("Arial", "B", 8)
-        notes = self.music_box_object.notes
-        for n in range(N_NOTES):
-            symbol = notes[n % len(notes)][0]
-            pdf.text(x0_first_note + n * PIN_WIDTH,
-                     current_y + pdf.font_size,
-                     symbol)
+        self._draw_note_labels(pdf, x0=x0 - N_NOTES * PIN_WIDTH / 2, y=current_y)
+
         current_y += pdf.font_size + 1
 
         # un-rotate
@@ -204,6 +197,25 @@ class Strip:
         pdf.line(x0, y - 4, x0_strip_angle, y - STRIP_WIDTH / 2)
         pdf.line(x0, y + 4, x0_strip_angle, y + STRIP_WIDTH / 2)
         return x0_adjusted
+
+    def _draw_note_labels(self, pdf, x0, y, font_size=6):
+        pdf.set_font("Arial", "B", font_size)
+        notes = self.music_box_object.notes
+
+        for n in range(len(notes)):
+            symbol = notes[n % len(notes)][0]
+            # First letter
+            pdf.set_font_size(font_size)
+            pdf.text(x0 + n * self.music_box_object.pin_width,
+                     y + pdf.font_size,
+                     symbol[0])
+            # Rest of the symbol
+            pdf.set_font_size(font_size/2)
+            pdf.text(x0 + n * self.music_box_object.pin_width + pdf.font_size*1.4,
+                     y + pdf.font_size*2,
+                     symbol[1:])
+
+        pdf.set_font_size(font_size)
 
     def _draw_body(self, pdf, x0, x1, y):
         pdf.set_draw_color(140, 140, 140)
