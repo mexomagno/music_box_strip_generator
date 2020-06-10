@@ -8,7 +8,7 @@ import argparse
 import yaml
 from musicbox.box import MusicBox
 from musicbox.pdf import Renderer
-import midi
+from musicbox.midi import Parser
 
 
 def parse_args(parsed_boxes):
@@ -20,10 +20,9 @@ def parse_args(parsed_boxes):
         if ext.lower() != ".mid":
             raise argparse.ArgumentTypeError("Unsupported extension: '{}'. Use a midi file only".format(s))
         # Check if valid midi file
-        try:
-            midi.read_midifile(s)
-        except Exception as e:
-            raise argparse.ArgumentTypeError("Could not process midi file! '{}'".format(e))
+        if not Parser.file_is_valid(s):
+            raise argparse.ArgumentTypeError("Unable to process midi file")
+
         return s
 
     def _title_string(s):

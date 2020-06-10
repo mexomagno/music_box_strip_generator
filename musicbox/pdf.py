@@ -1,5 +1,4 @@
 from .midi import Parser
-import midi
 from fpdf import FPDF
 
 class Renderer(FPDF):
@@ -34,7 +33,7 @@ class Renderer(FPDF):
         self.set_title("{} - {} ({}x{})".format(song_title, song_author, self.w, self.h))
         # Parse midi file
         # Beware: Complex, giant midi files will be brought to memory all at once with this step!
-        parsed_notes = Parser.render_to_box(midi.read_midifile(midi_file))
+        parsed_notes = Parser.render_to_box(midi_file)
 
         self.add_page()
         strip_generator = StripGenerator(music_box_object=self.music_box_object,

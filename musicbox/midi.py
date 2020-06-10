@@ -3,6 +3,15 @@ import midi
 
 class Parser:
     @staticmethod
+    def file_is_valid(file_path):
+        try:
+            midi.read_midifile(file_path)
+            return True
+        except Exception as e:
+            print(e)
+            return False
+
+    @staticmethod
     def fit_to_tuning(midi_object, tuning):
         """ Force chromatism into tuning """
         pass
@@ -31,7 +40,7 @@ class Parser:
         return 12 * (octave + 1) + "C C# D D# E F F# G G# A A# B".split(" ").index(note)
 
     @staticmethod
-    def render_to_box(midi_object):
+    def render_to_box(midi_file):
         """
         Parses and generates a music-box-compatible structure
 
@@ -44,6 +53,7 @@ class Parser:
         dict
 
         """
+        midi_object = midi.read_midifile(midi_file)
         midi_object.make_ticks_abs()
         resolution = midi_object.resolution
         rendered = list()
