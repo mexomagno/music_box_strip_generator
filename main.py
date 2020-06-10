@@ -11,8 +11,7 @@ from musicbox.pdf import Renderer
 import midi
 
 
-
-def parse_args():
+def parse_args(parsed_boxes):
     def _midi_file(s):
         # check if exists
         if not os.path.exists(s):
@@ -39,89 +38,10 @@ def parse_args():
             raise argparse.ArgumentTypeError("Directory '{}' doesn't exist".format(s))
         return s
 
-    ap = argparse.ArgumentParser(description="MIDI Music paper strips generator for Kikkerland's music box")
-    ap.add_argument("midi_file", metavar="MIDI_FILE", type=_midi_file, help="MIDI file to parse")
-    ap.add_argument("song_title", metavar="SONG_TITLE", type=_title_string, help="Title of the song")
-    ap.add_argument("song_author", metavar="SONG_AUTHOR", type=_title_string, help="Author of the song")
-    ap.add_argument("output_dir", metavar="OUTPUT_DIR", type=_real_dir, help="Directory where to put the output",
-                    nargs="?")
-
-    ap.add_argument("--paper_size", "-s", help="(mm) Size of the paper where to print", nargs=2, default=[215.9, 279.4],
-                    type=float)
-    ap.add_argument("--box", "-b", help="Music box to use, from musicboxes.yml", type=int, default=0)
-    args = ap.parse_args()
-    if not args.output_dir:
-        args.output_dir = os.path.dirname(args.midi_file)
-    return args
-
-
-def parse_args_old():
-    # Define custom arg types
-    def _restricted_pin_number(x):
-        x = int(x)
-        min = 15
-        max = 100
-        if not min <= x <= max:
-            raise argparse.ArgumentTypeError("{} out of range [{}, {}]".format(x, min, max))
-        return x
-
-    def _restricted_pin_width(x):
-        x = float(x)
-        min = 0.1
-        max = 4
-        if not min <= x <= max:
-            raise argparse.ArgumentTypeError("{} out of range [{}, {}]".format(x, min, max))
-        return x
-
-    def _restricted_beat_width(x):
-        x = float(x)
-        min = 1
-        max = 20
-        if not min <= x <= max:
-            raise argparse.ArgumentTypeError("{} out of range [{}, {}]".format(x, min, max))
-        return x
-
-    def _restricted_strip_padding(x):
-        x = float(x)
-        min = 0
-        max = 15
-        if not min <= x <= max:
-            raise argparse.ArgumentTypeError("{} out of range [{}, {}]".format(x, min, max))
-        return x
-
-    def _restricted_strip_separation(x):
-        x = float(x)
-        min = 0
-        max = 30
-        if not min <= x <= max:
-            raise argparse.ArgumentTypeError("{} out of range [{}, {}]".format(x, min, max))
-        return x
-
-    def _midi_file(s):
-        # check if exists
-        if not os.path.exists(s):
-            raise argparse.ArgumentTypeError("File '{}' doesn't exist".format(s))
-        _, ext = os.path.splitext(s)
-        if ext.lower() != ".mid":
-            raise argparse.ArgumentTypeError("Unsupported extension: '{}'. Use a midi file only".format(s))
-        # Check if valid midi file
-        try:
-            midi.read_midifile(s)
-        except Exception as e:
-            raise argparse.ArgumentTypeError("Could not process midi file! '{}'".format(e))
-        return s
-
-    def _title_string(s):
-        min_l = 1
-        max_l = 50
-        if not min_l <= len(s) <= max_l:
-            raise argparse.ArgumentTypeError("Length of '{}' is out of range '[{}, {}]".format(len(s), min_l, max_l))
-        return s
-
-    def _real_dir(s):
-        if not os.path.exists(s):
-            raise argparse.ArgumentTypeError("Directory '{}' doesn't exist".format(s))
-        return s
+    def _existing_box(s):
+        if not 1 <= int(s) <= len(parsed_boxes):
+            raise argparse.ArgumentTypeError(f'Box index {s} out of range ({len(parsed_boxes)} boxes were found in definition)')
+        return int(s)
 
     ap = argparse.ArgumentParser(description="MIDI Music paper strips generator for Kikkerland's music box")
     ap.add_argument("midi_file", metavar="MIDI_FILE", type=_midi_file, help="MIDI file to parse")
@@ -132,14 +52,7 @@ def parse_args_old():
 
     ap.add_argument("--paper_size", "-s", help="(mm) Size of the paper where to print", nargs=2, default=[215.9, 279.4],
                     type=float)
-    # ap.add_argument("--pin_number", "-n", help="Number of notes the box can reproduce", type=_restricted_pin_number, default=15)
-    # ap.add_argument("--pinwidth", "-pw", help="(mm) Physical separation between note pins", type=_restricted_pin_width, default=2.0)
-    ap.add_argument("--beatwidth", "-bw", help="(mm) Size of eighth notes. Affects song speed",
-                    type=_restricted_beat_width, default=4.0)
-    ap.add_argument("--strip_padding", "-sm", help="(mm) Additional strip width", type=_restricted_strip_padding,
-                    default=6.6)
-    ap.add_argument("--strip_separation", "-ss", help="(mm) Separation between strips",
-                    type=_restricted_strip_separation, default=0)
+    ap.add_argument("--box", "-b", help="Music box to use, from musicboxes.yml", type=_existing_box, default=0)
     args = ap.parse_args()
     if not args.output_dir:
         args.output_dir = os.path.dirname(args.midi_file)
@@ -154,25 +67,22 @@ def load_music_boxes():
     # Try to parse file settings
     settings_dict = yaml.load(open(settings_file))
     print("Loaded '{}'".format(settings_file))
-    settings_version = settings_dict["version"]
-    print("Settings file version: {version}\n"
-          "Music boxes configured: {n_boxes}"
-          .format(version=settings_version,
-                  n_boxes=len(settings_dict["boxes"])))
+    print(f"Settings file version: {settings_dict['version']}\n")
+
+    print("Definitions found:")
+    [ print(f"\t{index+1}: {box['meta']['description']}") for index, box in enumerate(settings_dict['boxes']) ]
+
+    print(f"Total boxes: {len(settings_dict['boxes'])}\n")
 
     return settings_dict['boxes']
 
 
-def load_box(index = 0):
-    boxes = load_music_boxes()
-    return boxes[index]
-
-
 def main():
     # Get and parse args
-    parsed_args = parse_args()
+    parsed_boxes = load_music_boxes()
+    parsed_args = parse_args(parsed_boxes)
     # Check if selected box exists
-    box_def = load_box(parsed_args.box)
+    box_def = parsed_boxes[parsed_args.box - 1]
     musicbox = MusicBox(**box_def)
     print("\n", musicbox)
 
