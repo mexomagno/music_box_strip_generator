@@ -48,7 +48,7 @@ def parse_args():
 
     ap.add_argument("--paper_size", "-s", help="(mm) Size of the paper where to print", nargs=2, default=[215.9, 279.4],
                     type=float)
-    # ap.add_argument("--music_box", "-b", help="Which box from the music boxes definition to use", type=int, default=1)
+    ap.add_argument("--box", "-b", help="Music box to use, from musicboxes.yml", type=int, default=0)
     args = ap.parse_args()
     if not args.output_dir:
         args.output_dir = os.path.dirname(args.midi_file)
@@ -147,8 +147,8 @@ def parse_args_old():
 
 
 def load_music_boxes():
-    settings_file = "musicboxes.yaml"
-    if not os.path.isfile(settings_file) or not settings_file.strip().lower().endswith(".yaml"):
+    settings_file = "musicboxes.yml"
+    if not os.path.isfile(settings_file) or not settings_file.strip().lower().endswith(".yml"):
         raise IOError("No valid music boxes config file could be found!!")
 
     # Try to parse file settings
@@ -160,27 +160,21 @@ def load_music_boxes():
           .format(version=settings_version,
                   n_boxes=len(settings_dict["boxes"])))
 
-    # Construct boxes from settings
     return settings_dict['boxes']
-    # loaded_boxes = list()
-    # for box_definition in settings_dict["boxes"]:
-    #     loaded_boxes.append(MusicBox(box_definition))
-    # print("Boxes loaded")
-    # return loaded_boxes
 
 
 def load_box(index = 0):
     boxes = load_music_boxes()
-    return boxes[0]
+    return boxes[index]
 
 
 def main():
     # Get and parse args
     parsed_args = parse_args()
     # Check if selected box exists
-    box_def = load_box(0)
+    box_def = load_box(parsed_args.box)
     musicbox = MusicBox(**box_def)
-    print(musicbox)
+    print("\n", musicbox)
 
     # Generate instance
     doc = Renderer(musicbox,

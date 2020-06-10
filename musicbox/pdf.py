@@ -300,7 +300,7 @@ class Strip:
 
         def note_to_y(note, octave):
             note_y0 = y + STRIP_WIDTH / 2
-            note_position = self.music_box_object.notes.index((note, octave))
+            note_position = self.music_box_object.find_note((note, octave))
             return note_y0 - (note_position * PIN_WIDTH) - NOTE_RADIUS / 2
 
         # Remove trailing beats before (error caused?)
@@ -323,16 +323,14 @@ class Strip:
                 # print("Reached out of strip note: {}:{}{}".format(n_beat, n_note, n_octave))
                 notes = [note] + notes
                 break
-            if n_note not in [n[0] for n in self.music_box_object.notes]:
-                print("Omitting out of tune note '{}'".format(n_note))
-                continue
             if not min_pitch <= n_pitch <= max_pitch:
-                print("Cannot draw note: {} is out of {} - {})"
-                      .format(Parser.pitch_to_note(n_pitch),
-                              Parser.pitch_to_note(min_pitch),
-                              Parser.pitch_to_note(max_pitch)))
+                print(f"Cannot draw note: {Parser.pitch_to_note(n_pitch)} is outside [{self.music_box_object.notes[0]} - {self.music_box_object.notes[-1]}]")
                 continue
             # Draw note
-            pdf.ellipse(beat_to_x(n_beat), note_to_y(n_note, n_octave), NOTE_RADIUS, NOTE_RADIUS, "B")
+            if not self.music_box_object.has_note(f"{n_note}{n_octave}"):
+                print(f"Skipped {n_note}{n_octave} (not present in music box)")
+                continue
+            note_y_pos = note_to_y(n_note, n_octave)
+            pdf.ellipse(beat_to_x(n_beat), note_y_pos, NOTE_RADIUS, NOTE_RADIUS, "B")
         pdf.set_line_width(last_line_width)
         return notes
