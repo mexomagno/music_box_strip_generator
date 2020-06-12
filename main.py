@@ -88,7 +88,8 @@ def main():
     # Generate instance
     doc = Renderer(musicbox,
                                strip_separation=0,
-                               paper_size=parsed_args.paper_size)
+                               paper_size=parsed_args.paper_size,
+                               style=box_def['style'])
 
     print("Will generate with settings:\n"
           "\tPaper size: {paper_size} (Warning: HP p1102w printer supported dimensions are [76.2-215.9]x[127-356]\n"

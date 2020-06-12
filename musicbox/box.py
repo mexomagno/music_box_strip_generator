@@ -11,6 +11,7 @@ class MusicBox:
 
         # load notes as (note, octave) tuples
         self.notes = [MusicBox._note_str_to_tuple(note) for note in kwargs['music_props']['notes']]
+        self.highlighted = [] if not 'highlight' in kwargs['music_props'] else kwargs['music_props']['highlight']
         self.clef = kwargs["music_props"]["clef"]
 
     def __str__(self):
@@ -32,6 +33,12 @@ class MusicBox:
         """Checks if a given note is playable in the loaded music box."""
         # note string has to be like [note][octave], for example F#3, bb4
         return self.find_note(note_str) >= 0
+
+    def is_note_highlighted(self, note):
+        for highlighted_note in self.highlighted:
+            if MusicBox._note_equals(note, highlighted_note):
+                return True
+        return False
 
     def find_note(self, note_tuple):
         for index, note in enumerate(self.notes):

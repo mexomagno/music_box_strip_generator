@@ -7,7 +7,7 @@ class Renderer(FPDF):
     All units in mm except for fonts, which are in points.
     """
 
-    def __init__(self, music_box_object, paper_size=(279.4, 215.9), strip_separation=0):
+    def __init__(self, music_box_object, paper_size=(279.4, 215.9), strip_separation=0, style={}):
         """
 
         Parameters
@@ -16,7 +16,7 @@ class Renderer(FPDF):
         paper_size: Size of the paper where the file will be printed to
         strip_separation: Separation between strips in the paper
         """
-        super().__init__("p", "mm", paper_size)
+        super().__init__("l", "mm", paper_size)
         self.set_author("Mexomagno")
         self.set_auto_page_break(True)
         self.set_margins(8, 6, 8)
@@ -25,6 +25,9 @@ class Renderer(FPDF):
         self.music_box_object = music_box_object
         self.strip_separation = strip_separation
         self.generated = False
+
+        # Styles
+        self.styles = style
 
     def generate(self, midi_file, output_file, song_title="NO-TITLE", song_author="NO-AUTHOR"):
         if self.generated:
@@ -38,7 +41,8 @@ class Renderer(FPDF):
         self.add_page()
         strip_generator = StripGenerator(music_box_object=self.music_box_object,
                                          song_title=song_title,
-                                         song_author=song_author)
+                                         song_author=song_author,
+                                         styles=self.styles)
         # Add notes to strip
         current_y = - strip_generator.get_height() / 2 - self.strip_separation + self.t_margin
 
@@ -64,7 +68,7 @@ class Renderer(FPDF):
 
 
 class StripGenerator:
-    def __init__(self, music_box_object, song_title=None, song_author=None):
+    def __init__(self, music_box_object, song_title=None, song_author=None, styles={}):
         """
 
         Parameters
@@ -77,16 +81,19 @@ class StripGenerator:
         self.song_title = song_title
         self.song_author = song_author
         self.has_header = False
+        self.styles = styles
 
     def new_strip(self, first_beat_position):
         if not self.has_header:
             self.has_header = True
             return Strip(music_box_object=self.music_box_object,
                          header={"song_title": self.song_title,
-                                 "song_author": self.song_author})
+                                 "song_author": self.song_author},
+                        styles=self.styles)
         else:
             return Strip(self.music_box_object,
-                         first_beat=first_beat_position)
+                         first_beat=first_beat_position,
+                         styles=self.styles)
 
     def get_height(self):
         pw = self.music_box_object.pin_width
@@ -96,7 +103,7 @@ class StripGenerator:
 
 
 class Strip:
-    def __init__(self, music_box_object, first_beat=0, header=None):
+    def __init__(self, music_box_object, first_beat=0, header=None, styles={}):
         """
         Creates a "Strip" representing a paper strip which will contain the notes
 
@@ -114,6 +121,9 @@ class Strip:
         self.song_title = header["song_title"] if self.is_first and "song_title" in header else "NO-TITLE"
         self.song_author = header["song_author"] if self.is_first and "song_author" in header else "NO-TITLE"
         self.first_beat = first_beat
+
+        for param in ['v_line_width', 'h_line_width', 'highlight_width']:
+            setattr(self, param, 0.2 if param not in styles else styles[param])
 
     def draw(self, pdf, x0, x1, y, notes):
         """ Draws the strip in the pdf document """
@@ -226,7 +236,8 @@ class Strip:
         # G_CLEF_Y = None
         do_g_clef = False  #all([x in self.note_symbols for x in G_CLEF_NOTES])
         clef_offset = 0  #len(self.note_symbols) - (N_NOTES % len(self.note_symbols))
-        for h_line in range(N_NOTES):
+        # Draw horizontal lines
+        for index, note in enumerate(reversed(self.music_box_object.notes)):
             # if do_g_clef and len(G_CLEF_NOTES) != 0 \
             #         and G_CLEF_NOTES[-1] == list(reversed(self.note_symbols))[
             #     (h_line + clef_offset) % len(self.note_symbols)]:
@@ -241,11 +252,13 @@ class Strip:
             #         G_CLEF_Y = y - STRIP_WIDTH / 2 + PIN_WIDTH * h_line + PIN_WIDTH / 2
             #     G_CLEF_NOTES = G_CLEF_NOTES[:-1]
             # else:
-            pdf.line(x0, y - STRIP_WIDTH / 2 + PIN_WIDTH * h_line + PIN_WIDTH / 2,
+            pdf.set_line_width(self.highlight_width if self.music_box_object.is_note_highlighted(note) else self.h_line_width)
+            pdf.line(x0, y - STRIP_WIDTH / 2 + PIN_WIDTH * index + PIN_WIDTH / 2,
                      x0 + (x1 - x0) - ((x1 - x0) % BEAT_WIDTH),
-                     y - STRIP_WIDTH / 2 + PIN_WIDTH * h_line + PIN_WIDTH / 2)
+                     y - STRIP_WIDTH / 2 + PIN_WIDTH * index + PIN_WIDTH / 2)
 
         # Draw vertical lines
+        pdf.set_line_width(self.v_line_width)
         for v_line in range(int((x1 - x0) / BEAT_WIDTH) + 1):
             line_x = x0 + v_line * BEAT_WIDTH
             y_half = STRIP_WIDTH / 2 - PIN_WIDTH / 2

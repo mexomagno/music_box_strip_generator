@@ -44,7 +44,11 @@ boxes:
     start_margin: 6.6
     end_margin: 6.6
     hole_radius: 2.0
-    beat_width: 4.0
+    beat_width: 6.0
+  style:
+    h_line_width: 0.2
+    v_line_width: 0.2
+    highlight_width: 0.6
   music_props:
     notes:  # from low to high 
       - F3
@@ -77,4 +81,9 @@ boxes:
       - F6
       - G6
       - A6
+    highlight:
+      - F4
+      - Db5
+      - G5
+      - Db6
     clef: "G"
